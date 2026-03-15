@@ -1,9 +1,7 @@
 use vstd::prelude::*;
-use crate::machine::*;
 use crate::formula::*;
 use crate::proof_system::*;
 use crate::zfc::*;
-use crate::computation::*;
 use crate::ceer::*;
 use crate::machine_axioms::*;
 
@@ -200,61 +198,6 @@ pub proof fn lemma_zfc_equiv_is_ceer()
             assert(ceer_equiv_chain(e, n, m, chain));
         }
     };
-}
-
-/// Helper: if two predicates are extensionally equal and one is CE, the other is CE.
-proof fn lemma_ce_extensional(
-    s1: spec_fn(nat) -> bool,
-    s2: spec_fn(nat) -> bool,
-)
-    requires
-        is_ce(s1),
-        forall|n: nat| #[trigger] s1(n) <==> s2(n),
-    ensures
-        is_ce(s2),
-{
-    let m = choose|m: RegisterMachine| #[trigger] machine_accepts(m, s1);
-    assert forall|n: nat| s2(n) <==> #[trigger] halts(m, n) by {};
-    assert(machine_accepts(m, s2));
-}
-
-/// ZFC provable equivalence is computably enumerable.
-/// Proof: use axiom_zfc_ceer + axiom_ceer_nontrivial_ce to get CE for declared_equiv,
-/// then transfer via extensional equality to zfc_equiv_nat.
-pub proof fn lemma_zfc_equiv_is_ce()
-    ensures
-        is_ce(|n: nat| exists|m: nat| m != n && zfc_equiv_nat(n, m)),
-{
-    axiom_zfc_ceer();
-    let e = choose|e: CEER| ceer_wf(e) &&
-        (forall|n: nat, m: nat| n != m && zfc_equiv_nat(n, m) ==> declared_equiv(e, n, m)) &&
-        (forall|n: nat, m: nat| declared_equiv(e, n, m) ==> zfc_equiv_nat(n, m));
-
-    axiom_ceer_nontrivial_ce(e);
-    // Now: is_ce(|n: nat| exists|m: nat| m != n && declared_equiv(e, n, m))
-
-    let s_decl: spec_fn(nat) -> bool = |n: nat| exists|m: nat| m != n && declared_equiv(e, n, m);
-    let s_zfc: spec_fn(nat) -> bool = |n: nat| exists|m: nat| m != n && zfc_equiv_nat(n, m);
-
-    // Show extensional equality between the two predicates
-    assert forall|n: nat| #[trigger] s_decl(n) <==> s_zfc(n) by {
-        // Forward: declared_equiv(e, n, k) ==> zfc_equiv_nat(n, k)
-        assert(s_decl(n) ==> s_zfc(n)) by {
-            if s_decl(n) {
-                let k = choose|k: nat| k != n && declared_equiv(e, n, k);
-                assert(zfc_equiv_nat(n, k));
-            }
-        };
-        // Backward: k != n && zfc_equiv_nat(n, k) ==> declared_equiv(e, n, k)
-        assert(s_zfc(n) ==> s_decl(n)) by {
-            if s_zfc(n) {
-                let k = choose|k: nat| k != n && zfc_equiv_nat(n, k);
-                assert(declared_equiv(e, n, k));
-            }
-        };
-    };
-
-    lemma_ce_extensional(s_decl, s_zfc);
 }
 
 } // verus!
