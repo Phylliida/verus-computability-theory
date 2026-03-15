@@ -24,3 +24,9 @@ pub mod zfc_ceer;
 
 #[cfg(verus_keep_ghost)]
 pub mod machine_axioms;
+
+#[cfg(verus_keep_ghost)]
+pub mod ceer_group;
+
+#[cfg(verus_keep_ghost)]
+pub mod higman;

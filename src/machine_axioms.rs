@@ -6,6 +6,23 @@ use crate::zfc_ceer::*;
 
 verus! {
 
+// ============================================================
+// Register machine composition axioms
+//
+// These capture standard computability theory results that require
+// building explicit register machine programs to prove from first
+// principles. Each axiom has a construction sketch in its doc comment.
+//
+// Axioms 1-2 (composition/dovetailing) are provable by concatenating
+// instruction sequences with register remapping — no universal
+// simulation needed (~300-500 lines each).
+//
+// Axioms 3-4 require universal register machine simulation or
+// ZFC proof enumeration (~1000-2000 lines each) and are lower
+// priority since downstream work (CEER universality, Higman
+// embedding) only uses their conclusions.
+// ============================================================
+
 /// Axiom 1: Sequential composition of register machines.
 ///
 /// Given two machines m1 and m2, there exists m3 that halts on n iff BOTH m1 and m2 halt on n.
