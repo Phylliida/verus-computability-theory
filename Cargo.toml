@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 vstd = { path = "../verus/source/vstd" }
+verus-group-theory = { path = "../verus-group-theory" }
 
 [package.metadata.verus]
 verify = true
