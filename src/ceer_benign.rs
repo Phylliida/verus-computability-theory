@@ -1,65 +1,73 @@
 use vstd::prelude::*;
 use crate::ceer::*;
-use crate::ceer_group::*;
-use crate::ceer_two_gen::*;
-use verus_group_theory::symbol::*;
 use verus_group_theory::word::*;
 use verus_group_theory::presentation::*;
-use verus_group_theory::presentation_lemmas::*;
-use verus_group_theory::benign::*;
-use verus_group_theory::quotient::*;
-use verus_group_theory::higman_operations::*;
 
 verus! {
 
 // ============================================================
-// CEER Relators as Benign Subgroup of F₂
+// Higman's Embedding Theorem for CEER Groups
 // ============================================================
 //
-// The CEER image relators (universal_word(a) · inverse(universal_word(b))
-// for each declared pair (a,b)) form a recursively enumerable set
-// of words in the 2-generator free group F₂ = ⟨x, y⟩.
+// Higman's theorem states that every recursively presented group
+// embeds in a finitely presented group.
 //
-// By Higman's characterization, any R.E. set of relators generates
-// a benign subgroup of the free group. This is the core of
-// Higman's embedding theorem.
+// The CEER group G = ⟨g₀, g₁, ... | gₐgᵦ⁻¹ for declared (a,b)⟩
+// is recursively presented (the enumerator machine produces the
+// declared pairs computably). By Higman's theorem, G embeds
+// faithfully in some finitely presented group H.
 //
-// We axiomatize this result since the full proof requires:
-// 1. Encoding the CEER enumerator as Higman operations
-// 2. Proving each Higman operation preserves benignness
-// 3. Composing the operations to get the full R.E. set
+// NOTE: An earlier version tried to route through a 2-generator
+// intermediate group F₂/⟨⟨gens⟩⟩ using universal words y⁻ⁿxyⁿ.
+// This approach is mathematically flawed: in ANY quotient of F₂
+// where universal_word(0) ≡ universal_word(1), conjugation by y
+// forces universal_word(n) ≡ universal_word(n+1) for ALL n,
+// making all universal words equivalent. This means no quotient
+// of F₂ can faithfully capture a non-trivial, non-universal CEER
+// equivalence on universal words.
+//
+// The correct formulation states the embedding directly from
+// the CEER equivalence to the finitely presented group, without
+// going through a 2-generator intermediate.
 
-/// The image relators of a CEER form a benign subgroup of F₂.
+/// A valid embedding of a CEER into a finitely presented group.
+pub open spec fn is_ceer_fp_embedding(
+    e: CEER, p: Presentation, emb: spec_fn(nat) -> Word,
+) -> bool {
+    presentation_valid(p) &&
+    (forall|n: nat| #[trigger] word_valid(emb(n), p.num_generators)) &&
+    (forall|n: nat, m: nat|
+        ceer_equiv(e, n, m) <==>
+        #[trigger] equiv_in_presentation(p, emb(n), emb(m)))
+}
+
+/// Presentation p admits an embedding of CEER e.
+pub open spec fn admits_ceer_embedding(e: CEER, p: Presentation) -> bool {
+    exists|emb: spec_fn(nat) -> Word|
+        #[trigger] is_ceer_fp_embedding(e, p, emb)
+}
+
+/// Higman's Embedding Theorem for CEER groups:
+/// The CEER group (recursively presented, possibly infinitely generated)
+/// embeds faithfully in a finitely presented group.
 ///
-/// Specifically: the set of all image_relator(a, b) for declared
-/// CEER pairs (a, b) generates a benign subgroup of the
-/// 2-generator free group.
+/// There exist a finite presentation H and a map emb: N → H such that
+/// ceer_equiv(n, m) ⟺ emb(n) ≡ emb(m) in H.
 ///
-/// This follows from Higman's characterization: the CEER enumerator
-/// is a register machine that recursively enumerates the declared
-/// pairs. The corresponding image relators form an R.E. subset of
-/// F₂'s word semigroup, and Higman's operations show that R.E.
-/// subsets correspond to benign subgroups.
+/// The construction follows Higman's original approach:
+/// 1. The CEER enumerator is a register machine M
+/// 2. M's computation is encoded into a finitely presented group
+///    via HNN extensions and amalgamated free products
+/// 3. The encoding preserves the equivalence relation faithfully
+///
+/// This axiom captures the full content of Higman's theorem applied
+/// to computably enumerable equivalence relations.
 #[verifier::external_body]
-pub proof fn axiom_ceer_relators_benign(e: CEER)
+pub proof fn axiom_ceer_embeds_in_fp_group(e: CEER)
     requires
         ceer_wf(e),
     ensures
-        exists|gens: Seq<Word>, witness: BenignWitness|
-            // The generators are valid 2-gen words
-            (forall|i: int| 0 <= i < gens.len() ==>
-                word_valid(#[trigger] gens[i], 2)) &&
-            // The witness is valid
-            #[trigger] benign_witness_valid(free_group(2), gens, witness) &&
-            // The quotient F₂/⟨⟨gens⟩⟩ faithfully captures T_G:
-            // Two universal words are equiv in the quotient iff
-            // they are equiv in T_G (i.e., iff ceer_equiv holds)
-            (forall|n: nat, m: nat|
-                #[trigger] equiv_in_presentation(
-                    add_relators(free_group(2), gens),
-                    universal_word(n),
-                    universal_word(m),
-                ) <==> ceer_equiv(e, n, m)),
+        exists|p: Presentation| #[trigger] admits_ceer_embedding(e, p),
 {
 }
 
