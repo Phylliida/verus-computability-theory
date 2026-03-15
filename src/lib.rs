@@ -29,4 +29,13 @@ pub mod machine_axioms;
 pub mod ceer_group;
 
 #[cfg(verus_keep_ghost)]
+pub mod ceer_group_backward;
+
+#[cfg(verus_keep_ghost)]
+pub mod ceer_two_gen;
+
+#[cfg(verus_keep_ghost)]
+pub mod ceer_benign;
+
+#[cfg(verus_keep_ghost)]
 pub mod higman;
