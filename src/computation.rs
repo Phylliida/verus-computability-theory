@@ -50,4 +50,36 @@ pub proof fn lemma_computable_fn_total(m: RegisterMachine, f: spec_fn(nat) -> na
 {
 }
 
+// ============================================================
+// C.E. closure properties (deferred)
+// ============================================================
+
+/// The union of two c.e. sets is c.e.
+/// Proof deferred: requires building an interleaved machine that simulates
+/// both machines in alternation and halts when either halts.
+#[verifier::external_body]
+pub proof fn lemma_ce_union(s1: spec_fn(nat) -> bool, s2: spec_fn(nat) -> bool)
+    requires
+        is_ce(s1),
+        is_ce(s2),
+    ensures
+        is_ce(|n: nat| s1(n) || s2(n)),
+{
+    assume(false);
+}
+
+/// The intersection of two c.e. sets is c.e.
+/// Proof deferred: requires building a dovetailed machine that simulates
+/// both machines and halts only when both halt on the same input.
+#[verifier::external_body]
+pub proof fn lemma_ce_intersection(s1: spec_fn(nat) -> bool, s2: spec_fn(nat) -> bool)
+    requires
+        is_ce(s1),
+        is_ce(s2),
+    ensures
+        is_ce(|n: nat| s1(n) && s2(n)),
+{
+    assume(false);
+}
+
 } // verus!
