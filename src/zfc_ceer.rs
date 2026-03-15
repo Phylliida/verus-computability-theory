@@ -1,9 +1,11 @@
 use vstd::prelude::*;
+use crate::machine::*;
 use crate::formula::*;
 use crate::proof_system::*;
 use crate::zfc::*;
 use crate::computation::*;
 use crate::ceer::*;
+use crate::machine_axioms::*;
 
 verus! {
 
@@ -140,30 +142,119 @@ pub proof fn lemma_zfc_equiv_nat_transitive(n: nat, m: nat, k: nat)
 }
 
 // ============================================================
-// Deferred: ZFC equivalence is a CEER
+// ZFC equivalence is a CEER — derived from axioms
 // ============================================================
 
-/// ZFC provable equivalence is computably enumerable.
-/// Proof deferred: requires building a register machine that systematically
-/// enumerates all valid ZFC proofs and outputs pairs (encode(φ), encode(ψ))
-/// when it finds a proof of φ ↔ ψ.
-#[verifier::external_body]
-pub proof fn lemma_zfc_equiv_is_ce()
+/// Helper: if every declared_equiv link implies zfc_equiv_nat,
+/// then any ceer_equiv_chain implies zfc_equiv_nat (by induction on chain length).
+proof fn lemma_ceer_chain_implies_zfc(e: CEER, n: nat, m: nat, chain: Seq<nat>)
+    requires
+        ceer_equiv_chain(e, n, m, chain),
+        forall|a: nat, b: nat| declared_equiv(e, a, b) ==> zfc_equiv_nat(a, b),
     ensures
-        is_ce(|n: nat| exists|m: nat| m != n && zfc_equiv_nat(n, m)),
+        zfc_equiv_nat(n, m),
+    decreases chain.len(),
 {
-    assume(false);
+    if chain.len() == 1 {
+        // n == m, reflexive
+        lemma_zfc_equiv_nat_reflexive(n);
+    } else {
+        let mid = chain[1];
+        // From chain: declared_equiv(e, n, mid)
+        // From precondition: zfc_equiv_nat(n, mid)
+        // Recurse on shorter chain for zfc_equiv_nat(mid, m)
+        lemma_ceer_chain_implies_zfc(e, mid, m, chain.drop_first());
+        lemma_zfc_equiv_nat_transitive(n, mid, m);
+    }
 }
 
 /// ZFC provable equivalence is a CEER.
-/// Proof deferred: depends on lemma_zfc_equiv_is_ce above.
-#[verifier::external_body]
+/// Proof: use axiom_zfc_ceer to get a CEER matching declared_equiv ↔ zfc_equiv_nat,
+/// then show ceer_equiv ↔ zfc_equiv_nat via chain induction (forward) and
+/// 2-chain construction (backward).
 pub proof fn lemma_zfc_equiv_is_ceer()
     ensures
         exists|e: CEER| ceer_wf(e) &&
             forall|n: nat, m: nat| ceer_equiv(e, n, m) <==> zfc_equiv_nat(n, m),
 {
-    assume(false);
+    axiom_zfc_ceer();
+    let e = choose|e: CEER| ceer_wf(e) &&
+        (forall|n: nat, m: nat| n != m && zfc_equiv_nat(n, m) ==> declared_equiv(e, n, m)) &&
+        (forall|n: nat, m: nat| declared_equiv(e, n, m) ==> zfc_equiv_nat(n, m));
+
+    // Forward: ceer_equiv(e, n, m) ==> zfc_equiv_nat(n, m)
+    assert forall|n: nat, m: nat| ceer_equiv(e, n, m) implies zfc_equiv_nat(n, m) by {
+        let chain = choose|chain: Seq<nat>| ceer_equiv_chain(e, n, m, chain);
+        lemma_ceer_chain_implies_zfc(e, n, m, chain);
+    };
+
+    // Backward: zfc_equiv_nat(n, m) ==> ceer_equiv(e, n, m)
+    assert forall|n: nat, m: nat| zfc_equiv_nat(n, m) implies ceer_equiv(e, n, m) by {
+        if n == m {
+            lemma_ceer_equiv_reflexive(e, n);
+        } else {
+            // axiom gives declared_equiv(e, n, m) from n != m && zfc_equiv_nat(n, m)
+            let chain = seq![n, m];
+            assert(chain.drop_first() =~= seq![m]);
+            assert(ceer_equiv_chain(e, m, m, seq![m]));
+            assert(ceer_equiv_chain(e, n, m, chain));
+        }
+    };
+}
+
+/// Helper: if two predicates are extensionally equal and one is CE, the other is CE.
+proof fn lemma_ce_extensional(
+    s1: spec_fn(nat) -> bool,
+    s2: spec_fn(nat) -> bool,
+)
+    requires
+        is_ce(s1),
+        forall|n: nat| #[trigger] s1(n) <==> s2(n),
+    ensures
+        is_ce(s2),
+{
+    let m = choose|m: RegisterMachine| #[trigger] machine_accepts(m, s1);
+    assert forall|n: nat| s2(n) <==> #[trigger] halts(m, n) by {};
+    assert(machine_accepts(m, s2));
+}
+
+/// ZFC provable equivalence is computably enumerable.
+/// Proof: use axiom_zfc_ceer + axiom_ceer_nontrivial_ce to get CE for declared_equiv,
+/// then transfer via extensional equality to zfc_equiv_nat.
+pub proof fn lemma_zfc_equiv_is_ce()
+    ensures
+        is_ce(|n: nat| exists|m: nat| m != n && zfc_equiv_nat(n, m)),
+{
+    axiom_zfc_ceer();
+    let e = choose|e: CEER| ceer_wf(e) &&
+        (forall|n: nat, m: nat| n != m && zfc_equiv_nat(n, m) ==> declared_equiv(e, n, m)) &&
+        (forall|n: nat, m: nat| declared_equiv(e, n, m) ==> zfc_equiv_nat(n, m));
+
+    axiom_ceer_nontrivial_ce(e);
+    // Now: is_ce(|n: nat| exists|m: nat| m != n && declared_equiv(e, n, m))
+
+    let s_decl: spec_fn(nat) -> bool = |n: nat| exists|m: nat| m != n && declared_equiv(e, n, m);
+    let s_zfc: spec_fn(nat) -> bool = |n: nat| exists|m: nat| m != n && zfc_equiv_nat(n, m);
+
+    // Show extensional equality between the two predicates
+    assert forall|n: nat| #[trigger] s_decl(n) <==> s_zfc(n) by {
+        // Forward: declared_equiv(e, n, k) ==> zfc_equiv_nat(n, k)
+        assert(s_decl(n) ==> s_zfc(n)) by {
+            if s_decl(n) {
+                let k = choose|k: nat| k != n && declared_equiv(e, n, k);
+                assert(zfc_equiv_nat(n, k));
+            }
+        };
+        // Backward: k != n && zfc_equiv_nat(n, k) ==> declared_equiv(e, n, k)
+        assert(s_zfc(n) ==> s_decl(n)) by {
+            if s_zfc(n) {
+                let k = choose|k: nat| k != n && zfc_equiv_nat(n, k);
+                assert(declared_equiv(e, n, k));
+            }
+        };
+    };
+
+    lemma_ce_extensional(s_decl, s_zfc);
 }
 
 } // verus!
