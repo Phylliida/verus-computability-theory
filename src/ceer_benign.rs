@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::ceer::*;
+use crate::ceer_benign_construction::*;
 use verus_group_theory::word::*;
 use verus_group_theory::presentation::*;
 
@@ -17,18 +18,13 @@ verus! {
 // declared pairs computably). By Higman's theorem, G embeds
 // faithfully in some finitely presented group H.
 //
-// NOTE: An earlier version tried to route through a 2-generator
-// intermediate group F₂/⟨⟨gens⟩⟩ using universal words y⁻ⁿxyⁿ.
-// This approach is mathematically flawed: in ANY quotient of F₂
-// where universal_word(0) ≡ universal_word(1), conjugation by y
-// forces universal_word(n) ≡ universal_word(n+1) for ALL n,
-// making all universal words equivalent. This means no quotient
-// of F₂ can faithfully capture a non-trivial, non-universal CEER
-// equivalence on universal words.
-//
-// The correct formulation states the embedding directly from
-// the CEER equivalence to the finitely presented group, without
-// going through a 2-generator intermediate.
+// The proof decomposes into:
+// 1. axiom_ceer_relators_benign: the CEER image relators form a
+//    benign subgroup of F_2 (Aanderaa-Cohen machine encoding)
+// 2. lemma_rope_trick: benign subgroup of F_2 → f.p. embedding
+//    (proved in verus-group-theory/higman_operations.rs)
+// 3. Bridge lemmas connecting two-gen equivalence ↔ quotient
+//    equivalence ↔ CEER equivalence
 
 /// A valid embedding of a CEER into a finitely presented group.
 pub open spec fn is_ceer_fp_embedding(
@@ -54,21 +50,36 @@ pub open spec fn admits_ceer_embedding(e: CEER, p: Presentation) -> bool {
 /// There exist a finite presentation H and a map emb: N → H such that
 /// ceer_equiv(n, m) ⟺ emb(n) ≡ emb(m) in H.
 ///
-/// The construction follows Higman's original approach:
-/// 1. The CEER enumerator is a register machine M
-/// 2. M's computation is encoded into a finitely presented group
-///    via HNN extensions and amalgamated free products
-/// 3. The encoding preserves the equivalence relation faithfully
+/// Proof: Uses the Aanderaa-Cohen machine group encoding +
+/// benign subgroup construction + Rope Trick.
 ///
-/// This axiom captures the full content of Higman's theorem applied
-/// to computably enumerable equivalence relations.
-#[verifier::external_body]
-pub proof fn axiom_ceer_embeds_in_fp_group(e: CEER)
+/// Remaining axioms in the proof chain:
+/// - axiom_enumerator_machine_exists (Church-Turing thesis)
+/// - axiom_ceer_relators_benign (CEER relators are benign in F_2)
+/// - axiom_ceer_to_modular (register→modular machine conversion)
+/// - axiom_machine_hnn_isomorphic (HNN associations form isomorphism)
+/// - axiom_machine_group_backward (Britton-based backward direction)
+/// - axiom_config_words_free_injective (free group normal forms)
+/// - lemma_two_gen_to_quotient_equiv, lemma_quotient_to_two_gen_equiv,
+///   lemma_two_gen_backward (bridge lemmas)
+pub proof fn lemma_ceer_embeds_in_fp_group_main(e: CEER)
     requires
         ceer_wf(e),
     ensures
         exists|p: Presentation| #[trigger] admits_ceer_embedding(e, p),
 {
+    // Delegate to the construction module
+    lemma_ceer_embeds_in_fp_group(e);
+
+    // Extract witnesses
+    let p = choose|p: Presentation, emb: spec_fn(nat) -> Word|
+        #[trigger] is_ceer_fp_embedding(e, p, emb);
+    let emb = choose|emb: spec_fn(nat) -> Word|
+        #[trigger] is_ceer_fp_embedding(e, p, emb);
+
+    // Prove admits_ceer_embedding
+    assert(is_ceer_fp_embedding(e, p, emb));
+    assert(admits_ceer_embedding(e, p));
 }
 
 } // verus!

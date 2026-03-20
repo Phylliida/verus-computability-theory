@@ -77,7 +77,7 @@ pub proof fn lemma_higman_embedding(e: CEER)
             presentation_valid(p) && #[trigger] admits_ceer_group_embedding(e, p),
 {
     // Step 1: Higman's theorem gives a f.p. group + embedding capturing ceer_equiv
-    axiom_ceer_embeds_in_fp_group(e);
+    lemma_ceer_embeds_in_fp_group_main(e);
 
     // Extract witnesses using the admits_ceer_embedding wrapper
     let p = choose|p: Presentation| #[trigger] admits_ceer_embedding(e, p);
