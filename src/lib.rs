@@ -50,4 +50,7 @@ pub mod ceer_benign;
 pub mod modular_machine;
 
 #[cfg(verus_keep_ghost)]
+pub mod ceer_benign_construction;
+
+#[cfg(verus_keep_ghost)]
 pub mod higman;
