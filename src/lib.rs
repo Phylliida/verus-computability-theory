@@ -23,6 +23,15 @@ pub mod zfc;
 pub mod zfc_ceer;
 
 #[cfg(verus_keep_ghost)]
+pub mod proof_encoding;
+
+#[cfg(verus_keep_ghost)]
+pub mod zfc_enumerator;
+
+#[cfg(verus_keep_ghost)]
+pub mod church_turing;
+
+#[cfg(verus_keep_ghost)]
 pub mod machine_axioms;
 
 #[cfg(verus_keep_ghost)]
@@ -36,6 +45,9 @@ pub mod ceer_two_gen;
 
 #[cfg(verus_keep_ghost)]
 pub mod ceer_benign;
+
+#[cfg(verus_keep_ghost)]
+pub mod modular_machine;
 
 #[cfg(verus_keep_ghost)]
 pub mod higman;
