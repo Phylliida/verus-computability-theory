@@ -66,7 +66,7 @@ proof fn lemma_ceer_group_to_zfc_embedding(e: CEER, p: Presentation)
 /// Higman's Embedding Theorem: the CEER group (recursively presented)
 /// embeds in a finitely presented group.
 ///
-/// Proof: axiom_ceer_embeds_in_fp_group gives a f.p. group H and
+/// Proof: lemma_ceer_embeds_in_fp_group_main gives a f.p. group H and
 /// an embedding emb such that ceer_equiv(n, m) ↔ equiv_in_presentation(H, emb(n), emb(m)).
 /// We bridge ceer_equiv ↔ ceer_group_equiv via lemma_ceer_equiv_iff_group_equiv.
 pub proof fn lemma_higman_embedding(e: CEER)
