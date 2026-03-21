@@ -115,6 +115,21 @@ pub proof fn lemma_pair_injective(a1: nat, b1: nat, a2: nat, b2: nat)
     assert(b1 == b2);
 }
 
+/// The "anti-diagonal" of a paired value: the unique k with T(k) <= p < T(k+1).
+pub open spec fn unpair_sum(p: nat) -> nat {
+    choose|k: nat| #[trigger] triangular(k) <= p && p < triangular(k + 1)
+}
+
+/// First component of Cantor unpairing.
+pub open spec fn unpair1(p: nat) -> nat {
+    (p - triangular(unpair_sum(p))) as nat
+}
+
+/// Second component of Cantor unpairing.
+pub open spec fn unpair2(p: nat) -> nat {
+    (unpair_sum(p) - unpair1(p)) as nat
+}
+
 /// Helper: T(n+1) = T(n) + n + 1.
 proof fn lemma_triangular_step(n: nat)
     ensures
