@@ -114,21 +114,85 @@ pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
 }
 
 // ============================================================
-// Reduced Church-Turing Axiom
+// Core Church-Turing Axioms
 // ============================================================
 
-/// Reduced Church-Turing axiom: every CompSpec-definable partial function
-/// has a register machine implementation.
+/// Core axiom 1: Every CompSpec defines a total computable function.
+///
+/// There exists a register machine that always halts and whose output
+/// (register 0) equals eval_comp(c, input) for every input.
+///
+/// Justification: each CompSpec operation (constant, successor, predecessor,
+/// addition, multiplication, composition, pairing, projection, conditional,
+/// comparison, bounded recursion) is primitive recursive. Every primitive
+/// recursive function is register-machine computable — this is a standard
+/// theorem in computability theory.
+#[verifier::external_body]
+pub proof fn axiom_comp_spec_total(c: CompSpec)
+    ensures
+        exists|rm: RegisterMachine|
+            machine_wf(rm) &&
+            (forall|s: nat| halts(rm, s)) &&
+            (forall|s: nat| output(rm, s) == eval_comp(c, s)),
+{
+}
+
+/// Core axiom 2: Three total register machines can be composed into a
+/// partial machine that conditionally halts.
+///
+/// Given machines computing halts_fn, out1_fn, out2_fn (all total),
+/// there exists a machine that:
+///   - halts on input s iff halts_fn(s) != 0
+///   - when halting, register 1 = out1_fn(s), register 2 = out2_fn(s)
+///
+/// Justification: standard register machine composition. The combined
+/// machine runs the halts_fn machine, tests its output, and either
+/// loops forever (if 0) or runs the two output machines and stores
+/// results in registers 1 and 2.
+#[verifier::external_body]
+pub proof fn axiom_compose_partial_machine(
+    rm_halts: RegisterMachine,
+    rm_out1: RegisterMachine,
+    rm_out2: RegisterMachine,
+    halts_fn: spec_fn(nat) -> nat,
+    out1_fn: spec_fn(nat) -> nat,
+    out2_fn: spec_fn(nat) -> nat,
+)
+    requires
+        machine_wf(rm_halts) &&
+        (forall|s: nat| halts(rm_halts, s)) &&
+        (forall|s: nat| output(rm_halts, s) == halts_fn(s)),
+        machine_wf(rm_out1) &&
+        (forall|s: nat| halts(rm_out1, s)) &&
+        (forall|s: nat| output(rm_out1, s) == out1_fn(s)),
+        machine_wf(rm_out2) &&
+        (forall|s: nat| halts(rm_out2, s)) &&
+        (forall|s: nat| output(rm_out2, s) == out2_fn(s)),
+    ensures
+        exists|rm: RegisterMachine|
+            machine_wf(rm) && rm.num_regs >= 3 &&
+            (forall|s: nat| halts(rm, s) <==> halts_fn(s) != 0) &&
+            (forall|s: nat, fuel: nat|
+                run_halts(rm, initial_config(rm, s), fuel) ==> (
+                    run(rm, initial_config(rm, s), fuel).registers[1] == out1_fn(s) &&
+                    run(rm, initial_config(rm, s), fuel).registers[2] == out2_fn(s)
+                )),
+{
+}
+
+// ============================================================
+// Derived Church-Turing Theorem
+// ============================================================
+
+/// Every CompSpec-definable partial function has a register machine.
+///
+/// Previously an axiom (external_body). Now derived from:
+///   1. axiom_comp_spec_total (CompSpec → total register machine)
+///   2. axiom_compose_partial_machine (compose total machines into partial one)
 ///
 /// A "partial function" is specified by:
 ///   - halts_check: CompSpec whose output is nonzero iff the machine should halt
 ///   - output1, output2: CompSpec giving the two output values when halting
-///
-/// Justification: each CompSpec operation is primitive recursive.
-/// Composition, pairing, bounded recursion preserve primitive recursiveness.
-/// Every primitive recursive function is register-machine computable
-/// (standard computability theory, independent of any domain-specific logic).
-#[verifier::external_body]
 pub proof fn axiom_computable_partial_fn(
     halts_check: CompSpec,
     output1: CompSpec,
@@ -144,6 +208,32 @@ pub proof fn axiom_computable_partial_fn(
                     run(rm, initial_config(rm, s), fuel).registers[2] == eval_comp(output2, s)
                 )),
 {
+    // Step 1: Get total machines for each CompSpec
+    axiom_comp_spec_total(halts_check);
+    axiom_comp_spec_total(output1);
+    axiom_comp_spec_total(output2);
+
+    // Step 2: Choose the witness machines
+    let rm_h = choose|rm: RegisterMachine|
+        machine_wf(rm) &&
+        (forall|s: nat| halts(rm, s)) &&
+        (forall|s: nat| output(rm, s) == eval_comp(halts_check, s));
+    let rm_1 = choose|rm: RegisterMachine|
+        machine_wf(rm) &&
+        (forall|s: nat| halts(rm, s)) &&
+        (forall|s: nat| output(rm, s) == eval_comp(output1, s));
+    let rm_2 = choose|rm: RegisterMachine|
+        machine_wf(rm) &&
+        (forall|s: nat| halts(rm, s)) &&
+        (forall|s: nat| output(rm, s) == eval_comp(output2, s));
+
+    // Step 3: Compose into a partial machine
+    axiom_compose_partial_machine(
+        rm_h, rm_1, rm_2,
+        |s: nat| eval_comp(halts_check, s),
+        |s: nat| eval_comp(output1, s),
+        |s: nat| eval_comp(output2, s),
+    );
 }
 
 } // verus!
