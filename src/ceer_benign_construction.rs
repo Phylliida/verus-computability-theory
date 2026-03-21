@@ -651,12 +651,19 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
     lemma_add_derivable_relators_reverse(q, irs, universal_word(n), universal_word(m));
 }
 
-/// Backward: equiv in the quotient F_2/⟨⟨gens⟩⟩ implies ceer_equiv.
+/// KNOWN FALSE — see docs/two-gen-backward-bug.md.
 ///
-/// If universal_word(n) ≡ universal_word(m) in F_2/⟨⟨gens⟩⟩,
-/// then universal_word(n) · inverse(universal_word(m)) is in ⟨⟨gens⟩⟩,
-/// hence in the CEER normal closure, which means there exist declared
-/// pairs witnessing n ~ m.
+/// Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
+/// abelianizes F_2, making ALL universal words equal. So
+/// equiv_in_presentation(quotient, uw(2), uw(3)) holds but
+/// ceer_equiv(e, 2, 3) does not.
+///
+/// Root cause: image relators in F_2 create side-effect commutation
+/// relations beyond the intended CEER identifications.
+///
+/// This lemma is no longer on the critical path — the backward
+/// direction now uses axiom_ceer_fp_embedding (Higman's theorem)
+/// directly, bypassing the F_2 quotient decomposition.
 #[verifier::external_body]
 pub proof fn lemma_quotient_to_two_gen_equiv(
     e: CEER, gens: Seq<Word>, n: nat, m: nat,
@@ -679,14 +686,13 @@ pub proof fn lemma_quotient_to_two_gen_equiv(
 {
 }
 
-/// The backward direction of two-gen: equiv_in_two_gen implies ceer_equiv.
-/// This is the "two-gen backward" from the plan.
+/// KNOWN FALSE — see docs/two-gen-backward-bug.md.
 ///
-/// If universal_word(n) ≡ universal_word(m) in some finite
-/// two_gen_presentation(pairs), then since all relators of that
-/// presentation are image relators for declared pairs, and the
-/// group is a quotient of F_2, the equivalence witnesses a chain
-/// of declared pairs connecting n to m.
+/// Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
+/// abelianizes F_2, so equiv_in_two_gen(e, uw(2), uw(3)) holds
+/// but ceer_equiv(e, 2, 3) does not.
+///
+/// No longer on the critical path.
 #[verifier::external_body]
 pub proof fn lemma_two_gen_backward(e: CEER, n: nat, m: nat)
     requires

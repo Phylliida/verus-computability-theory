@@ -1,0 +1,106 @@
+Plan: Fix backward direction of CEER f.p. embedding
+
+Context
+
+lemma_two_gen_backward and lemma_quotient_to_two_gen_equiv are false
+(see two-gen-backward-bug.md). The backward direction of the f.p. embedding
+biconditional (equiv in H → ceer_equiv) cannot go through F_2 quotients
+because image_relators create side-effect commutations.
+
+The interpret_word approach also fails: inserting a gen at non-zero
+y-depth shifts all CeerGroup indices, so the interpretation isn't
+a homomorphism and can't be used to prove quotient compatibility.
+
+The correct math uses HNN extensions + Britton's lemma, but fully
+formalizing that is substantial. Instead, we replace the broken
+decomposition with a single correct axiom.
+
+Approach
+
+Replace the 3-axiom chain (axiom_ceer_relators_benign → rope_trick →
+backward bridge lemmas) with a single correct axiom that directly
+states the Higman embedding theorem for CEERs.
+
+The new axiom is justified by the standard Higman theorem proof
+(HNN extension + Britton's lemma + rope trick), same as the old
+axiom_ceer_relators_benign was justified by the Aanderaa-Cohen
+construction.
+
+Files
+
+1. MODIFY: src/ceer_benign.rs
+
+Add new axiom (alongside existing code):
+
+  #[verifier::external_body]
+  pub proof fn axiom_ceer_fp_embedding(e: CEER)
+      requires ceer_wf(e),
+      ensures
+          exists|p: Presentation, emb: spec_fn(nat) -> Word|
+              presentation_valid(p) &&
+              #[trigger] is_ceer_fp_embedding(e, p, emb),
+
+Justification: Higman's Embedding Theorem — every recursively presented
+group embeds in a finitely presented group. The CEER group (infinite
+generators, r.e. relators) is recursively presented. The embedding
+preserves the word problem: ceer_equiv ↔ group equiv.
+
+Change lemma_ceer_embeds_in_fp_group_main to use the new axiom:
+
+  pub proof fn lemma_ceer_embeds_in_fp_group_main(e: CEER)
+      requires ceer_wf(e),
+      ensures exists|p: Presentation| #[trigger] admits_ceer_embedding(e, p),
+  {
+      axiom_ceer_fp_embedding(e);
+      let p = choose|p: Presentation, emb: spec_fn(nat) -> Word|
+          presentation_valid(p) && is_ceer_fp_embedding(e, p, emb);
+      assert(admits_ceer_embedding(e, p));
+  }
+
+2. MODIFY: src/ceer_benign_construction.rs
+
+Mark false lemmas. Change external_body to include doc about falsity:
+
+  lemma_quotient_to_two_gen_equiv: add doc "KNOWN FALSE — see
+    docs/two-gen-backward-bug.md. Kept for reference."
+    Keep #[verifier::external_body] but add #[allow(dead_code)].
+
+  lemma_two_gen_backward: same treatment.
+
+  lemma_ceer_embeds_in_fp_group: Change proof body to use
+    axiom_ceer_fp_embedding directly. The old body (which uses
+    the false backward lemmas) is replaced.
+
+  Keep axiom_ceer_relators_benign — it's still mathematically
+    interesting (the gens DO generate in_ceer_normal_closure as
+    defined, even if the definition is too permissive).
+
+  Keep lemma_two_gen_to_quotient_equiv — correctly proved, and
+    the forward direction of the old proof is fine.
+
+3. NO CHANGE: src/ceer_benign.rs existing definitions
+   (is_ceer_fp_embedding, admits_ceer_embedding stay the same)
+
+4. NO CHANGE: src/higman.rs, src/machine_axioms.rs, etc.
+   (they use lemma_ceer_embeds_in_fp_group_main which still works)
+
+Axiom Debt Change
+
+Before:
+  - axiom_ceer_relators_benign (benignity, external_body)
+  - lemma_quotient_to_two_gen_equiv (FALSE, external_body)
+  - lemma_two_gen_backward (FALSE, external_body)
+
+After:
+  - axiom_ceer_fp_embedding (Higman's theorem, external_body)
+  - axiom_ceer_relators_benign (kept but off critical path)
+  - lemma_quotient_to_two_gen_equiv (marked FALSE, off critical path)
+  - lemma_two_gen_backward (marked FALSE, off critical path)
+
+Net: critical-path external_body goes from 3 (1 correct + 2 false)
+     to 1 (correct). The 2 false axioms are neutralized.
+
+Verification
+
+After changes: mcp check crate_name=verus-computability-theory
+module=ceer_benign should verify. Then module=ceer_benign_construction.

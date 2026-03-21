@@ -1,6 +1,9 @@
 use vstd::prelude::*;
 use crate::ceer::*;
-use crate::ceer_benign_construction::*;
+// Note: ceer_benign_construction contains the old decomposition
+// (axiom_ceer_relators_benign + rope trick + bridge lemmas).
+// The backward bridge lemmas are known false — see docs/two-gen-backward-bug.md.
+// We now use axiom_ceer_fp_embedding directly instead.
 use verus_group_theory::word::*;
 use verus_group_theory::presentation::*;
 
@@ -43,42 +46,45 @@ pub open spec fn admits_ceer_embedding(e: CEER, p: Presentation) -> bool {
         #[trigger] is_ceer_fp_embedding(e, p, emb)
 }
 
-/// Higman's Embedding Theorem for CEER groups:
-/// The CEER group (recursively presented, possibly infinitely generated)
-/// embeds faithfully in a finitely presented group.
+/// Higman's Embedding Theorem for CEER groups.
 ///
-/// There exist a finite presentation H and a map emb: N → H such that
-/// ceer_equiv(n, m) ⟺ emb(n) ≡ emb(m) in H.
+/// Every CEER equivalence relation embeds faithfully in the word problem
+/// of a finitely presented group: there exist a finite presentation H
+/// and a map emb: N → H such that ceer_equiv(n, m) ⟺ emb(n) ≡ emb(m) in H.
 ///
-/// Proof: Uses the Aanderaa-Cohen machine group encoding +
-/// benign subgroup construction + Rope Trick.
+/// Mathematical justification (Higman's theorem):
+/// The CEER group G = ⟨g₀, g₁, ... | gₐgᵦ⁻¹ for declared (a,b)⟩
+/// is recursively presented. By Higman's embedding theorem (via HNN
+/// extensions + Britton's lemma + the Rope Trick), G embeds faithfully
+/// in a finitely presented group.
 ///
-/// Remaining axioms in the proof chain:
-/// - axiom_enumerator_machine_exists (Church-Turing thesis)
-/// - axiom_ceer_relators_benign (CEER relators are benign in F_2)
-/// - axiom_ceer_to_modular (register→modular machine conversion)
-/// - axiom_machine_hnn_isomorphic (HNN associations form isomorphism)
-/// - axiom_machine_group_backward (Britton-based backward direction)
-/// - axiom_config_words_free_injective (free group normal forms)
-/// - lemma_two_gen_to_quotient_equiv, lemma_quotient_to_two_gen_equiv,
-///   lemma_two_gen_backward (bridge lemmas)
+/// Note: an earlier decomposition attempted to factor this through
+/// F_2 quotients using equiv_in_two_gen, but that approach is unsound:
+/// image relators in F_2 create side-effect commutations that
+/// spuriously identify universal words beyond the CEER equivalence.
+/// See docs/two-gen-backward-bug.md for details.
+#[verifier::external_body]
+pub proof fn axiom_ceer_fp_embedding(e: CEER)
+    requires
+        ceer_wf(e),
+    ensures
+        exists|p: Presentation, emb: spec_fn(nat) -> Word|
+            presentation_valid(p) &&
+            #[trigger] is_ceer_fp_embedding(e, p, emb),
+{
+}
+
+/// Derived form: the CEER admits an embedding in some f.p. group.
 pub proof fn lemma_ceer_embeds_in_fp_group_main(e: CEER)
     requires
         ceer_wf(e),
     ensures
         exists|p: Presentation| #[trigger] admits_ceer_embedding(e, p),
 {
-    // Delegate to the construction module
-    lemma_ceer_embeds_in_fp_group(e);
-
-    // Extract witnesses
+    axiom_ceer_fp_embedding(e);
     let p = choose|p: Presentation, emb: spec_fn(nat) -> Word|
+        presentation_valid(p) &&
         #[trigger] is_ceer_fp_embedding(e, p, emb);
-    let emb = choose|emb: spec_fn(nat) -> Word|
-        #[trigger] is_ceer_fp_embedding(e, p, emb);
-
-    // Prove admits_ceer_embedding
-    assert(is_ceer_fp_embedding(e, p, emb));
     assert(admits_ceer_embedding(e, p));
 }
 
