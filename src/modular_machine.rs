@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::machine::*;
+use crate::ceer::*;
 
 verus! {
 

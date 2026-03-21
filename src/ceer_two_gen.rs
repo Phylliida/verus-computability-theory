@@ -166,7 +166,7 @@ pub proof fn lemma_image_relator_valid(a: nat, b: nat)
 
 /// two_gen_presentation is presentation_valid when pairs are valid.
 /// image_relators indexing: image_relators(pairs)[i] == image_relator(pairs[i].a, pairs[i].b).
-proof fn lemma_image_relators_index(pairs: Seq<CeerPair>, i: int)
+pub proof fn lemma_image_relators_index(pairs: Seq<CeerPair>, i: int)
     requires
         0 <= i < pairs.len(),
     ensures
