@@ -159,7 +159,7 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
 {
     // Step 1: Get benign witness
     axiom_ceer_relators_benign(e);
-    let gens = choose|gens: Seq<Word>, witness: BenignWitness|
+    let pair_gw = choose|gens: Seq<Word>, witness: BenignWitness|
         (forall|i: int| 0 <= i < gens.len() ==>
             word_valid(#[trigger] gens[i], 2)) &&
         (forall|w: Word|
@@ -167,20 +167,14 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
             (in_generated_subgroup(free_group(2), gens, w) <==>
              #[trigger] in_ceer_normal_closure(e, w))) &&
         #[trigger] benign_witness_valid(free_group(2), gens, witness);
-    let witness = choose|witness: BenignWitness|
-        (forall|i: int| 0 <= i < gens.len() ==>
-            word_valid(#[trigger] gens[i], 2)) &&
-        (forall|w: Word|
-            word_valid(w, 2) ==>
-            (in_generated_subgroup(free_group(2), gens, w) <==>
-             #[trigger] in_ceer_normal_closure(e, w))) &&
-        #[trigger] benign_witness_valid(free_group(2), gens, witness);
+    let gens = pair_gw.0;
+    let witness = pair_gw.1;
 
     // Step 2: Apply Rope Trick
     lemma_rope_trick(gens, witness);
 
     // Step 3: Extract f.p. group and embedding from Rope Trick
-    let p = choose|p: Presentation, emb_inner: Seq<Word>|
+    let pair_pe = choose|p: Presentation, emb_inner: Seq<Word>|
         presentation_valid(p) &&
         emb_inner.len() == 2 &&
         (forall|i: int| 0 <= i < emb_inner.len() ==>
@@ -197,24 +191,8 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
                 apply_embedding(emb_inner, w1),
                 apply_embedding(emb_inner, w2))
             ==> #[trigger] equiv_in_presentation(add_relators(free_group(2), gens), w1, w2));
-
-    let emb_inner: Seq<Word> = choose|emb_inner: Seq<Word>|
-        presentation_valid(p) &&
-        emb_inner.len() == 2 &&
-        (forall|i: int| 0 <= i < emb_inner.len() ==>
-            word_valid(#[trigger] emb_inner[i], p.num_generators)) &&
-        (forall|w1: Word, w2: Word|
-            word_valid(w1, 2) && word_valid(w2, 2) &&
-            equiv_in_presentation(add_relators(free_group(2), gens), w1, w2)
-            ==> #[trigger] equiv_in_presentation(p,
-                apply_embedding(emb_inner, w1),
-                apply_embedding(emb_inner, w2))) &&
-        (forall|w1: Word, w2: Word|
-            word_valid(w1, 2) && word_valid(w2, 2) &&
-            equiv_in_presentation(p,
-                apply_embedding(emb_inner, w1),
-                apply_embedding(emb_inner, w2))
-            ==> #[trigger] equiv_in_presentation(add_relators(free_group(2), gens), w1, w2));
+    let p = pair_pe.0;
+    let emb_inner: Seq<Word> = pair_pe.1;
 
     // Step 4: Define the CEER embedding: n ↦ apply_embedding(emb_inner, universal_word(n))
     let emb = |n: nat| -> Word { apply_embedding(emb_inner, universal_word(n)) };
@@ -370,6 +348,34 @@ proof fn lemma_concat_all_factors_identity(
     }
 }
 
+/// concat_all of word_valid factors is word_valid.
+proof fn lemma_concat_all_word_valid(factors: Seq<Word>, n: nat)
+    requires
+        forall|k: int| 0 <= k < factors.len() ==>
+            word_valid(#[trigger] factors[k], n),
+    ensures
+        word_valid(concat_all(factors), n),
+    decreases factors.len(),
+{
+    if factors.len() == 0 {
+        lemma_concat_all_empty();
+        assert(word_valid(empty_word(), n)) by { reveal(word_valid); };
+    } else {
+        let rest = factors.drop_first();
+        assert forall|k: int| 0 <= k < rest.len()
+            implies word_valid(#[trigger] rest[k], n)
+        by {
+            assert(rest[k] == factors[k + 1]);
+        };
+        lemma_concat_all_word_valid(rest, n);
+        assert(word_valid(factors.first(), n)) by {
+            assert(factors.first() == factors[0]);
+        };
+        verus_group_theory::word::lemma_concat_word_valid(
+            factors.first(), concat_all(rest), n);
+    }
+}
+
 /// If w is in the generated subgroup of gens in the free group,
 /// then w ≡ ε in the quotient add_relators(free_group(n), gens).
 proof fn lemma_subgroup_member_identity_in_quotient(
@@ -412,38 +418,22 @@ proof fn lemma_subgroup_member_identity_in_quotient(
     lemma_add_relators_preserves_equiv(free_group(n), gens, concat_all(factors), w);
     // Now: concat_all(factors) ≡ w in q
 
-    // Need word_valid(concat_all(factors)) for symmetry
-    // concat_all(factors) ≡ w in free_group(n), so concat_all(factors) is also valid
-    // Actually we need to show this more carefully
-    // concat_all(factors) ≡ ε in q AND concat_all(factors) ≡ w in q
-    // So ε ≡ concat_all(factors) (symmetric) and concat_all(factors) ≡ w
-    // Thus ε ≡ w, i.e. w ≡ ε (symmetric)
-
-    // For symmetry we need word_valid(empty_word(), q.num_generators)
-    assert(word_valid(empty_word(), q.num_generators)) by {
-        reveal(word_valid);
+    // Show word_valid(concat_all(factors), n) — each factor is a gen or inv(gen)
+    assert forall|k: int| 0 <= k < factors.len()
+        implies word_valid(#[trigger] factors[k], n)
+    by {
+        let j = choose|j: int| 0 <= j < gens.len() &&
+            (factors[k] == #[trigger] gens[j] || factors[k] == inverse_word(gens[j]));
+        if factors[k] == gens[j] {
+        } else {
+            lemma_inverse_word_valid(gens[j], n);
+        }
     };
+    lemma_concat_all_word_valid(factors, n);
 
-    // ε ≡ concat_all(factors) in q (symmetric of concat_all ≡ ε)
-    // hmm, for symmetry need word_valid(concat_all(factors), q.num_generators)
-    // This is hard to show directly. Instead: w ≡ concat_all(factors) (symmetric of concat_all ≡ w)
-    // then concat_all(factors) ≡ ε, so w ≡ ε by transitivity.
-
-    // symmetric: concat_all(factors) ≡ w → w ≡ concat_all(factors)
-    // Need word_valid(concat_all(factors), n)
-    // Since concat_all(factors) ≡ w in free_group(n), and w is word_valid(w, n)...
-    // Actually we can avoid this by using transitivity differently:
-    // We have: concat_all(factors) ≡ ε AND concat_all(factors) ≡ w
-    // symmetric on (concat_all ≡ w) requires word_valid of concat_all
-    // Let's instead use: w needs to reach ε
-    // ε ≡ concat_all(factors) (symmetric of factors ≡ ε, needs word_valid(ε))
-    lemma_equiv_symmetric(q, concat_all(factors), empty_word());
-    // Now: ε ≡ concat_all(factors) in q
-    // And: concat_all(factors) ≡ w in q
-    lemma_equiv_transitive(q, empty_word(), concat_all(factors), w);
-    // Now: ε ≡ w in q
-    // symmetric: w ≡ ε
-    lemma_equiv_symmetric(q, empty_word(), w);
+    // Chain: concat_all ≡ ε AND concat_all ≡ w, so w ≡ concat_all ≡ ε
+    lemma_equiv_symmetric(q, concat_all(factors), w);
+    lemma_equiv_transitive(q, w, concat_all(factors), empty_word());
 }
 
 /// Each relator in rs exists in add_relators(p, rs).relators.
@@ -456,24 +446,25 @@ proof fn lemma_add_relators_relators_include(p: Presentation, rs: Seq<Word>, i: 
     decreases rs.len(),
 {
     let p1 = add_relator(p, rs.first());
+    let rs_tail = rs.drop_first();
+    // Key: add_relators(p, rs) == add_relators(p1, rs_tail) by definition
+    assert(add_relators(p, rs) == add_relators(p1, rs_tail));
     if i == 0 {
-        // rs[0] = rs.first() is added to p1.relators at the last position
-        // p1.relators = p.relators.push(rs.first())
-        // p1.relators[p.relators.len()] == rs.first() == rs[0]
-        let idx = (p.relators.len()) as int;
+        // rs[0] = rs.first() is at position p.relators.len() in p1
+        let idx = p.relators.len() as int;
         assert(p1.relators[idx] == rs.first());
         assert(rs[0] == rs.first());
-        // p1.relators is a subset of add_relators(p1, rs.drop_first()).relators
-        lemma_add_relators_extends(p1, rs.drop_first());
-        let q = add_relators(p1, rs.drop_first());
-        assert(extends_presentation(p1, q));
-        assert(q.relators.subrange(0, p1.relators.len() as int) == p1.relators);
-        assert(q.relators[idx] == p1.relators[idx]);
-        assert(q.relators[idx] == rs[0]);
+        // p1 extends into add_relators(p1, rs_tail)
+        lemma_add_relators_extends(p1, rs_tail);
+        assert(add_relators(p1, rs_tail).relators.subrange(0, p1.relators.len() as int) =~= p1.relators);
+        assert(idx < p1.relators.len() as int);
+        assert(add_relators(p1, rs_tail).relators[idx] == rs[0]);
+        assert(add_relators(p, rs).relators[idx] == rs[0]);
     } else {
-        // rs[i] == rs.drop_first()[i-1]
-        assert(rs.drop_first()[(i - 1) as int] == rs[i]);
-        lemma_add_relators_relators_include(p1, rs.drop_first(), i - 1);
+        // rs[i] == rs_tail[i-1]
+        assert(rs_tail[(i - 1) as int] == rs[i]);
+        lemma_add_relators_relators_include(p1, rs_tail, i - 1);
+        // The existential witness carries over since add_relators(p, rs) == add_relators(p1, rs_tail)
     }
 }
 

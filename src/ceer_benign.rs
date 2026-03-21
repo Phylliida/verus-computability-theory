@@ -82,9 +82,10 @@ pub proof fn lemma_ceer_embeds_in_fp_group_main(e: CEER)
         exists|p: Presentation| #[trigger] admits_ceer_embedding(e, p),
 {
     axiom_ceer_fp_embedding(e);
-    let p = choose|p: Presentation, emb: spec_fn(nat) -> Word|
+    let pair_pe = choose|p: Presentation, emb: spec_fn(nat) -> Word|
         presentation_valid(p) &&
         #[trigger] is_ceer_fp_embedding(e, p, emb);
+    let p = pair_pe.0;
     assert(admits_ceer_embedding(e, p));
 }
 

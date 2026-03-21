@@ -272,7 +272,7 @@ pub open spec fn modular_simulates_register(
             modular_run(
                 mm,
                 modular_initial_config(mm, encode_input(input)),
-                choose|fuel: nat| modular_run_halts(
+                choose|fuel: nat| #[trigger] modular_run_halts(
                     mm,
                     modular_initial_config(mm, encode_input(input)),
                     fuel,
@@ -411,7 +411,7 @@ pub open spec fn modular_simulates_ceer_enumerator(
             let mm_config = modular_run(
                 mm,
                 modular_initial_config(mm, encode_input(s)),
-                choose|fuel: nat| modular_run_halts(
+                choose|fuel: nat| #[trigger] modular_run_halts(
                     mm,
                     modular_initial_config(mm, encode_input(s)),
                     fuel,

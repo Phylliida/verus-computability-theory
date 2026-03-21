@@ -29,6 +29,12 @@ pub mod proof_encoding;
 pub mod zfc_enumerator;
 
 #[cfg(verus_keep_ghost)]
+pub mod computable;
+
+#[cfg(verus_keep_ghost)]
+pub mod enumerator_computable;
+
+#[cfg(verus_keep_ghost)]
 pub mod church_turing;
 
 #[cfg(verus_keep_ghost)]

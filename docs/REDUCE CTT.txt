@@ -1,0 +1,84 @@
+Plan: Reduce axiom_enumerator_machine_exists via CompSpec
+
+Context
+
+axiom_enumerator_machine_exists bundles two claims:
+  1. Proof checking is decidable (mathematical fact)
+  2. Decidable functions are register-machine computable (CTT)
+
+We separate these by introducing CompSpec — a formal witness of
+primitive recursive computability. The domain-specific logic (claim 1)
+becomes verified Verus code; only the generic CTT (claim 2) remains
+axiomatic.
+
+Files
+
+1. NEW: src/computable.rs (~120 lines)
+
+   CompSpec enum — primitive recursive computation specs:
+     Const, Id, Succ, Pred, Add, Mul, Comp, Pair, Fst, Snd,
+     IfZero, Eq, Lt, BoundedRec
+
+   Spec functions:
+     - eval_comp(c: CompSpec, input: nat) -> nat
+     - iterate(step_fn, count, acc, input) -> nat  (helper for BoundedRec)
+
+   Reduced axiom:
+     axiom_computable_partial_fn(halts_check, output1, output2)
+       ensures exists|rm: RegisterMachine| ...
+       (every CompSpec-defined partial function has a register machine)
+
+   Justification: each CompSpec operation is primitive recursive.
+   Primitive recursive functions are register-machine computable.
+   This is standard computability theory, no domain-specific content.
+
+2. NEW: src/enumerator_computable.rs (~100 lines, Phase 1)
+
+   Derives axiom_enumerator_machine_exists from the reduced axiom:
+     - Build CompSpec terms for halts_check, output1, output2
+     - Prove eval_comp matches enumerator_spec
+     - Call axiom_computable_partial_fn
+     - Bridge to axiom_enumerator_machine_exists's ensures
+
+   Phase 1: CompSpec terms are placeholders (Const{0}) with
+   assume(false) matching proofs. The STRUCTURE of the derivation
+   is verified; the matching proofs are deferred.
+
+   Phase 2 (future): Fill in real CompSpec terms for:
+     - Cantor unpairing
+     - Proof decoding (inverse of encode_proof)
+     - Proof validation (is_valid_proof)
+     - Conclusion checking (conclusion_is_iff_of_sentences)
+     - Pair extraction (extract_iff_pair)
+
+3. MODIFY: src/church_turing.rs
+
+   Remove #[verifier::external_body] from axiom_enumerator_machine_exists.
+   Add proof body calling the derivation from enumerator_computable.
+
+4. MODIFY: src/lib.rs
+
+   Add module declarations:
+     pub mod computable;
+     pub mod enumerator_computable;
+
+Axiom Debt Change
+
+Before: axiom_enumerator_machine_exists
+  (domain-specific CTT: "proof checking + register machine")
+
+After: axiom_computable_partial_fn
+  (generic CTT: "CompSpec functions are register-machine computable")
+  + 3 assume(false) in enumerator_computable.rs
+  (deferred: "enumerator_spec matches these CompSpec terms")
+
+The assume(false) items are mathematical facts (showing specific
+functions are primitive recursive), not CTT claims. They can be
+filled in incrementally in Phase 2.
+
+Implementation Order
+
+1. computable.rs — verify with check module=computable
+2. enumerator_computable.rs — verify with check module=enumerator_computable
+3. church_turing.rs — verify module or full crate
+4. lib.rs — add modules
