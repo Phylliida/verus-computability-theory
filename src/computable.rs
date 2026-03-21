@@ -137,6 +137,105 @@ pub proof fn axiom_comp_spec_total(c: CompSpec)
 {
 }
 
+// ============================================================
+// Sub-axioms for axiom_compose_partial_machine
+// ============================================================
+
+/// Sub-axiom A: Three total register machines can be merged into
+/// a single total machine with >= 3 registers that computes all
+/// three functions simultaneously.
+///
+/// Given total machines computing f_h, f_1, f_2, there exists a
+/// machine rm with num_regs >= 3 that:
+///   - halts on every input
+///   - on halting, reg[0] = f_h(s), reg[1] = f_1(s), reg[2] = f_2(s)
+///
+/// Justification: standard register machine composition. The combined
+/// machine runs each sub-machine in sequence using disjoint register
+/// banks, copying each result to the designated output register.
+/// Specifically:
+///   1. Run rm_halts (copies input, executes, stores reg[0] result to reg_h)
+///   2. Run rm_out1 (copies input, executes, stores reg[0] result to reg 1)
+///   3. Run rm_out2 (copies input, executes, stores reg[0] result to reg 2)
+///   4. Copy reg_h to reg 0; halt
+/// Register copying (dec-source/inc-target loops) and input restoration
+/// are standard register machine primitives. Since all sub-machines are
+/// total, the combined machine always halts.
+#[verifier::external_body]
+pub proof fn axiom_total_multi_output_machine(
+    rm_halts: RegisterMachine,
+    rm_out1: RegisterMachine,
+    rm_out2: RegisterMachine,
+    f_h: spec_fn(nat) -> nat,
+    f_1: spec_fn(nat) -> nat,
+    f_2: spec_fn(nat) -> nat,
+)
+    requires
+        machine_wf(rm_halts) &&
+        (forall|s: nat| halts(rm_halts, s)) &&
+        (forall|s: nat| output(rm_halts, s) == f_h(s)),
+        machine_wf(rm_out1) &&
+        (forall|s: nat| halts(rm_out1, s)) &&
+        (forall|s: nat| output(rm_out1, s) == f_1(s)),
+        machine_wf(rm_out2) &&
+        (forall|s: nat| halts(rm_out2, s)) &&
+        (forall|s: nat| output(rm_out2, s) == f_2(s)),
+    ensures
+        exists|rm: RegisterMachine|
+            machine_wf(rm) && rm.num_regs >= 3 &&
+            (forall|s: nat| halts(rm, s)) &&
+            (forall|s: nat, fuel: nat|
+                run_halts(rm, initial_config(rm, s), fuel) ==> (
+                    run(rm, initial_config(rm, s), fuel).registers[0] == f_h(s) &&
+                    run(rm, initial_config(rm, s), fuel).registers[1] == f_1(s) &&
+                    run(rm, initial_config(rm, s), fuel).registers[2] == f_2(s)
+                )),
+{
+}
+
+/// Sub-axiom B: A total multi-output machine can be converted into
+/// a partial machine that halts iff register 0 would be nonzero.
+///
+/// Given a total machine rm_total with num_regs >= 3 that on halting
+/// places f_h(s) in reg[0], f_1(s) in reg[1], f_2(s) in reg[2],
+/// there exists a machine rm that:
+///   - halts on input s iff f_h(s) != 0
+///   - when halting, reg[1] = f_1(s), reg[2] = f_2(s)
+///
+/// Justification: the combined machine first runs rm_total to
+/// completion (always halts since rm_total is total), then tests
+/// reg[0]: if nonzero, halts; if zero, enters an infinite loop
+/// (e.g., `Inc reg_scratch; DecJump reg_scratch self`).
+/// The output registers 1 and 2 are not modified by the conditional
+/// halt/loop logic, so they retain their values.
+#[verifier::external_body]
+pub proof fn axiom_conditional_halt_on_reg0(
+    rm_total: RegisterMachine,
+    f_h: spec_fn(nat) -> nat,
+    f_1: spec_fn(nat) -> nat,
+    f_2: spec_fn(nat) -> nat,
+)
+    requires
+        machine_wf(rm_total) && rm_total.num_regs >= 3 &&
+        (forall|s: nat| halts(rm_total, s)) &&
+        (forall|s: nat, fuel: nat|
+            run_halts(rm_total, initial_config(rm_total, s), fuel) ==> (
+                run(rm_total, initial_config(rm_total, s), fuel).registers[0] == f_h(s) &&
+                run(rm_total, initial_config(rm_total, s), fuel).registers[1] == f_1(s) &&
+                run(rm_total, initial_config(rm_total, s), fuel).registers[2] == f_2(s)
+            )),
+    ensures
+        exists|rm: RegisterMachine|
+            machine_wf(rm) && rm.num_regs >= 3 &&
+            (forall|s: nat| halts(rm, s) <==> f_h(s) != 0) &&
+            (forall|s: nat, fuel: nat|
+                run_halts(rm, initial_config(rm, s), fuel) ==> (
+                    run(rm, initial_config(rm, s), fuel).registers[1] == f_1(s) &&
+                    run(rm, initial_config(rm, s), fuel).registers[2] == f_2(s)
+                )),
+{
+}
+
 /// Core axiom 2: Three total register machines can be composed into a
 /// partial machine that conditionally halts.
 ///
@@ -145,11 +244,11 @@ pub proof fn axiom_comp_spec_total(c: CompSpec)
 ///   - halts on input s iff halts_fn(s) != 0
 ///   - when halting, register 1 = out1_fn(s), register 2 = out2_fn(s)
 ///
-/// Justification: standard register machine composition. The combined
-/// machine runs the halts_fn machine, tests its output, and either
-/// loops forever (if 0) or runs the two output machines and stores
-/// results in registers 1 and 2.
-#[verifier::external_body]
+/// Derived from:
+///   1. axiom_total_multi_output_machine — merge three total machines
+///      into one total machine with results in regs 0, 1, 2
+///   2. axiom_conditional_halt_on_reg0 — convert total machine to
+///      partial machine that halts iff reg 0 is nonzero
 pub proof fn axiom_compose_partial_machine(
     rm_halts: RegisterMachine,
     rm_out1: RegisterMachine,
@@ -178,6 +277,28 @@ pub proof fn axiom_compose_partial_machine(
                     run(rm, initial_config(rm, s), fuel).registers[2] == out2_fn(s)
                 )),
 {
+    // Step 1: Merge three total machines into one total multi-output machine
+    axiom_total_multi_output_machine(
+        rm_halts, rm_out1, rm_out2,
+        halts_fn, out1_fn, out2_fn,
+    );
+
+    // Step 2: Choose the witness total multi-output machine
+    let rm_total = choose|rm: RegisterMachine|
+        machine_wf(rm) && rm.num_regs >= 3 &&
+        (forall|s: nat| halts(rm, s)) &&
+        (forall|s: nat, fuel: nat|
+            run_halts(rm, initial_config(rm, s), fuel) ==> (
+                run(rm, initial_config(rm, s), fuel).registers[0] == halts_fn(s) &&
+                run(rm, initial_config(rm, s), fuel).registers[1] == out1_fn(s) &&
+                run(rm, initial_config(rm, s), fuel).registers[2] == out2_fn(s)
+            ));
+
+    // Step 3: Convert to a partial machine that halts iff reg 0 is nonzero
+    axiom_conditional_halt_on_reg0(
+        rm_total,
+        halts_fn, out1_fn, out2_fn,
+    );
 }
 
 // ============================================================
