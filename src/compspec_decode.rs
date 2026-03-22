@@ -186,7 +186,7 @@ proof fn lemma_iterate_extra_fuel(fuel1: nat, fuel2: nat, acc: nat, input: nat)
 
 /// For encoded sequences, eval_comp(get_last_pair(), enc) correctly finds the last pair.
 /// Result is encode_nat_seq(seq![last_element]) = pair(last_element + 1, 0).
-proof fn lemma_get_last_pair_correct(s: Seq<nat>)
+pub proof fn lemma_get_last_pair_correct(s: Seq<nat>)
     requires
         s.len() > 0,
     ensures
