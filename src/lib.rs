@@ -35,6 +35,9 @@ pub mod computable;
 pub mod conditional_halt;
 
 #[cfg(verus_keep_ghost)]
+pub mod multi_output_primitives;
+
+#[cfg(verus_keep_ghost)]
 pub mod multi_output_machine;
 
 #[cfg(verus_keep_ghost)]
