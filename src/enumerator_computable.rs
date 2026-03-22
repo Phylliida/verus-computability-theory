@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::machine::*;
 use crate::computable::*;
 use crate::zfc_enumerator::*;
+use crate::compspec_decode::*;
 
 verus! {
 
@@ -57,24 +58,24 @@ pub proof fn axiom_halts_is_prim_rec()
 {
 }
 
-/// Axiom: the first output component of enumerator_spec is primitive recursive.
+/// The first output component of enumerator_spec is primitive recursive.
 /// There exists a CompSpec c such that for all valid proof codes s,
 /// eval_comp(c, s) equals the first output of enumerator_spec(s).
-#[verifier::external_body]
 pub proof fn axiom_output1_is_prim_rec()
     ensures
         exists|c: CompSpec| #[trigger] is_output1_comp(c),
 {
+    lemma_output1_comp_correct();
 }
 
-/// Axiom: the second output component of enumerator_spec is primitive recursive.
+/// The second output component of enumerator_spec is primitive recursive.
 /// There exists a CompSpec c such that for all valid proof codes s,
 /// eval_comp(c, s) equals the second output of enumerator_spec(s).
-#[verifier::external_body]
 pub proof fn axiom_output2_is_prim_rec()
     ensures
         exists|c: CompSpec| #[trigger] is_output2_comp(c),
 {
+    lemma_output2_comp_correct();
 }
 
 // ============================================================

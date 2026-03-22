@@ -4,7 +4,9 @@ use crate::computable::*;
 use crate::formula::*;
 use crate::proof_system::*;
 use crate::proof_encoding::*;
+use crate::zfc::*;
 use crate::zfc_enumerator::*;
+use crate::enumerator_computable::*;
 
 verus! {
 
@@ -239,33 +241,86 @@ proof fn lemma_get_last_pair_correct(s: Seq<nat>)
 // Main output correctness proofs
 // ============================================================
 
+/// Helper: trace eval_comp through the unpairing chain for a valid proof code.
+proof fn lemma_output_eval_chain(s: nat, p: Proof)
+    requires
+        encode_proof(p) == s,
+        p.lines.len() > 0,
+        conclusion_is_iff_of_sentences(proof_conclusion(p)),
+    ensures ({
+        let conclusion = proof_conclusion(p);
+        let (enc_left, enc_right) = extract_iff_pair(conclusion);
+        eval_comp(output1_comp_term(), s) == enc_left &&
+        eval_comp(output2_comp_term(), s) == enc_right
+    }),
+{
+    let n = p.lines.len();
+    let conclusion = proof_conclusion(p);
+    let (enc_left, enc_right) = extract_iff_pair(conclusion);
+    let last_line = p.lines[n - 1];
+    assert(last_line.0 == conclusion);
+
+    // Step 1: Build the line encoding sequence
+    let line_encs = Seq::new(n, |i: int| encode_line(p.lines[i]));
+    assert(s == encode_nat_seq(line_encs));
+    assert(line_encs.len() > 0);
+
+    // Step 2: get_last_pair(s) finds the last encoded line
+    lemma_get_last_pair_correct(line_encs);
+    let last_enc_line = line_encs[n - 1];
+    assert(last_enc_line == encode_line(last_line));
+    let last_pair = encode_nat_seq(seq![last_enc_line]);
+    assert(eval_comp(get_last_pair(), s) == last_pair);
+
+    // Step 3: last_seq_elem(s) = Pred(unpair1(last_pair)) = last_enc_line
+    lemma_encode_nat_seq_structure(seq![last_enc_line]);
+    // last_pair = pair(last_enc_line + 1, 0)
+    // unpair1(last_pair) = last_enc_line + 1
+    // Pred(last_enc_line + 1) = last_enc_line
+
+    // Step 4: last_formula_enc(s) = unpair1(last_enc_line) = encode(conclusion)
+    // last_enc_line = encode_line(last_line) = pair(encode(conclusion), encode_justification(last_line.1))
+    lemma_unpair1_pair(encode(conclusion), encode_justification(last_line.1));
+    // unpair1(last_enc_line) = encode(conclusion)
+
+    // Step 5: iff_data(s) = unpair2(encode(conclusion))
+    // conclusion = Iff{left, right}
+    // encode(Iff{left, right}) = pair(6, pair(encode(left), encode(right)))
+    // Need to match the Iff pattern
+    match conclusion {
+        Formula::Iff { left, right } => {
+            let el = encode(*left);
+            let er = encode(*right);
+            assert(encode(conclusion) == pair(6, pair(el, er)));
+            lemma_unpair2_pair(6nat, pair(el, er));
+            // unpair2(encode(conclusion)) = pair(el, er)
+
+            // Step 6: output1 = unpair1(pair(el, er)) = el = enc_left
+            lemma_unpair1_pair(el, er);
+            // Step 6b: output2 = unpair2(pair(el, er)) = er = enc_right
+            lemma_unpair2_pair(el, er);
+        },
+        _ => {
+            // conclusion_is_iff_of_sentences requires Iff
+            assert(false);
+        },
+    }
+}
+
 /// The output1 CompSpec term computes the first output of enumerator_spec.
 pub proof fn lemma_output1_comp_correct()
     ensures
         is_output1_comp(output1_comp_term()),
 {
-    // For each valid proof code s:
-    // eval_comp(output1_comp_term(), s) == enumerator_spec(s).unwrap().0
     assert forall|s: nat| is_valid_iff_proof_code(s) implies
         (#[trigger] eval_comp(output1_comp_term(), s)) == enumerator_spec(s).unwrap().0
     by {
-        // s encodes a valid proof p with Iff conclusion
         let p: Proof = choose|p: Proof|
             encode_proof(p) == s &&
             is_valid_proof(p, |f: Formula| is_zfc_axiom(f)) &&
             p.lines.len() > 0 &&
             conclusion_is_iff_of_sentences(proof_conclusion(p));
-
-        // The conclusion is Iff{left, right}
-        let conclusion = proof_conclusion(p);
-        let (enc_left, enc_right) = extract_iff_pair(conclusion);
-        assert(enumerator_spec(s).unwrap().0 == enc_left);
-
-        // Now trace through the CompSpec evaluation:
-        // eval_comp(output1_comp_term(), s) should equal enc_left.
-        // This requires connecting the CompSpec's unpairing chain to the encoding structure.
-        // TODO: complete the proof connecting eval_comp to the encoding
-        assume(eval_comp(output1_comp_term(), s) == enc_left);
+        lemma_output_eval_chain(s, p);
     };
 }
 
@@ -282,12 +337,7 @@ pub proof fn lemma_output2_comp_correct()
             is_valid_proof(p, |f: Formula| is_zfc_axiom(f)) &&
             p.lines.len() > 0 &&
             conclusion_is_iff_of_sentences(proof_conclusion(p));
-
-        let conclusion = proof_conclusion(p);
-        let (enc_left, enc_right) = extract_iff_pair(conclusion);
-        assert(enumerator_spec(s).unwrap().1 == enc_right);
-
-        assume(eval_comp(output2_comp_term(), s) == enc_right);
+        lemma_output_eval_chain(s, p);
     };
 }
 
