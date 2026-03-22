@@ -1441,8 +1441,46 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
     assume(eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0);
 }
 
-/// Helper: the check_is_sentence BoundedRec iteration preserves acc=1
+/// Show one step of check_is_sentence_step preserves acc when has_free_var returns 0.
+proof fn lemma_cis_step_preserves(i: nat, acc: nat, f_enc: nat)
+    requires
+        eval_comp(has_free_var_comp(), pair(f_enc, i)) == 0,
+    ensures
+        eval_comp(check_is_sentence_step(), pair(i, pair(acc, f_enc))) == acc,
+{
+    reveal(check_is_sentence_step);
+
+    let input = pair(i, pair(acc, f_enc));
+    lemma_unpair1_pair(i, pair(acc, f_enc));
+    lemma_unpair2_pair(i, pair(acc, f_enc));
+    lemma_unpair1_pair(acc, f_enc);
+    lemma_unpair2_pair(acc, f_enc);
+
+    let f_enc_expr = cs_snd(cs_snd(CompSpec::Id));
+    let i_expr = cs_fst(CompSpec::Id);
+    let pair_expr = CompSpec::CantorPair {
+        left: Box::new(f_enc_expr),
+        right: Box::new(i_expr),
+    };
+    let hfv = has_free_var_comp();
+    let check = cs_comp(hfv, pair_expr);
+    let not_check = cs_not(check);
+    let acc_expr = cs_fst(cs_snd(CompSpec::Id));
+
+    assert(eval_comp(acc_expr, input) == acc) by {
+        lemma_eval_fst(cs_snd(CompSpec::Id), input);
+        lemma_eval_snd(CompSpec::Id, input);
+    };
+    assert(eval_comp(check, input) == 0nat) by {
+        lemma_eval_comp(hfv, pair_expr, input);
+    };
+    assert(eval_comp(not_check, input) == 1nat);
+    lemma_eval_cs_and(acc_expr, not_check, input);
+}
+
+/// Helper: the check_is_sentence BoundedRec iteration preserves nonzero acc
 /// when all has_free_var checks return 0.
+/// fuel <= f_enc ensures all checked variables are < f_enc.
 proof fn lemma_check_is_sentence_iter(
     f_enc: nat,
     fuel: nat,
@@ -1450,36 +1488,26 @@ proof fn lemma_check_is_sentence_iter(
 )
     requires
         acc != 0,
+        fuel <= f_enc,
         forall|v: nat| v < f_enc ==>
             eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0,
-    ensures ({
-        let step_fn = |x: nat| eval_comp(
-            // The step from check_is_sentence
-            cs_and(
-                cs_fst(cs_snd(CompSpec::Id)),  // acc
-                cs_not(cs_comp(has_free_var_comp(), cs_pair(
-                    cs_snd(cs_snd(CompSpec::Id)),  // f_enc (original input)
-                    cs_fst(CompSpec::Id),           // i (iteration index)
-                ))),
-            ), x);
-        iterate(step_fn, fuel, acc, f_enc) != 0
-    }),
+    ensures
+        iterate(
+            |x: nat| eval_comp(check_is_sentence_step(), x),
+            fuel, acc, f_enc,
+        ) != 0,
     decreases fuel,
 {
-    // For sentences, each step preserves nonzero accumulator:
-    // step(pair(i, pair(acc, f_enc))) = acc * cs_not(has_free_var(f_enc, i))
-    // Since has_free_var returns 0, cs_not returns 1, result = acc * 1 = acc.
-    // By induction on fuel, the accumulator stays nonzero.
-    assume(iterate(
-        |x: nat| eval_comp(
-            cs_and(
-                cs_fst(cs_snd(CompSpec::Id)),
-                cs_not(cs_comp(has_free_var_comp(), cs_pair(
-                    cs_snd(cs_snd(CompSpec::Id)),
-                    cs_fst(CompSpec::Id),
-                ))),
-            ), x),
-        fuel, acc, f_enc) != 0);
+    if fuel > 0 {
+        let i = (fuel - 1) as nat;
+        // i = fuel - 1 < fuel <= f_enc, so i < f_enc
+        assert(i < f_enc);
+        lemma_cis_step_preserves(i, acc, f_enc);
+        let step_fn = |x: nat| eval_comp(check_is_sentence_step(), x);
+        assert(step_fn(pair(i, pair(acc, f_enc))) == acc);
+        assert(acc != 0);
+        lemma_check_is_sentence_iter(f_enc, (fuel - 1) as nat, acc);
+    }
 }
 
 /// Helper: for encoded sentences, check_is_sentence returns nonzero.
@@ -1498,8 +1526,8 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     };
     // The BoundedRec iteration preserves nonzero accumulator
     lemma_check_is_sentence_iter(f_enc, f_enc, 1);
-    // Connect to check_is_sentence
-    assume(eval_comp(check_is_sentence(), f_enc) != 0);
+    // check_is_sentence() = BoundedRec { Id, cs_const(1), check_is_sentence_step() }
+    // eval_comp unfolds to: iterate(|x| eval_comp(check_is_sentence_step(), x), f_enc, 1, f_enc)
 }
 
 // lemma_eval_last_formula_enc is in compspec_eval_helpers.rs
