@@ -32,6 +32,9 @@ pub mod zfc_enumerator;
 pub mod computable;
 
 #[cfg(verus_keep_ghost)]
+pub mod conditional_halt;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
