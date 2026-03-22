@@ -1,6 +1,7 @@
 use vstd::prelude::*;
 use crate::pairing::*;
 use crate::machine::*;
+use crate::conditional_halt::*;
 
 verus! {
 
@@ -208,7 +209,6 @@ pub proof fn axiom_total_multi_output_machine(
 /// (e.g., `Inc reg_scratch; DecJump reg_scratch self`).
 /// The output registers 1 and 2 are not modified by the conditional
 /// halt/loop logic, so they retain their values.
-#[verifier::external_body]
 pub proof fn axiom_conditional_halt_on_reg0(
     rm_total: RegisterMachine,
     f_h: spec_fn(nat) -> nat,
@@ -234,6 +234,7 @@ pub proof fn axiom_conditional_halt_on_reg0(
                     run(rm, initial_config(rm, s), fuel).registers[2] == f_2(s)
                 )),
 {
+    lemma_conditional_halt_on_reg0(rm_total, f_h, f_1, f_2);
 }
 
 /// Core axiom 2: Three total register machines can be composed into a
