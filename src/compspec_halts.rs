@@ -281,25 +281,155 @@ pub open spec fn check_axiom_iff_elim_right() -> CompSpec {
     )
 }
 
-/// Check LogicAxiom justification: formula matches one of the axiom schemas.
-/// Input: formula_enc
-/// Currently checks: identity, eq_refl, iff_elim_left, iff_elim_right.
-/// TODO: add remaining axiom schemas.
-pub open spec fn check_logic_axiom() -> CompSpec {
-    cs_or(
-        check_axiom_identity(),
-        cs_or(
-            check_axiom_eq_refl(),
-            cs_or(
-                check_axiom_iff_elim_left(),
-                cs_or(
-                    check_axiom_iff_elim_right(),
-                    // TODO: remaining axioms
-                    cs_const(0)  // placeholder for remaining schemas
+/// Check: is_axiom_iff_intro at encoding level.
+/// f = Implies(Implies(φ,ψ), Implies(Implies(ψ,φ), Iff(φ,ψ)))
+/// Encoding: pair(5, pair(pair(5, pair(φ,ψ)), pair(5, pair(pair(5, pair(ψ,φ)), pair(6, pair(φ,ψ))))))
+/// Check: outer tag==5, left is Implies(φ,ψ), right is Implies(Implies(ψ,φ), Iff(φ,ψ))
+pub open spec fn check_axiom_iff_intro() -> CompSpec {
+    // f = pair(5, pair(L, R))
+    // L = pair(5, pair(φ, ψ))
+    // R = pair(5, pair(pair(5, pair(ψ, φ)), pair(6, pair(φ, ψ))))
+    // Extract φ = fst(snd(L)), ψ = snd(snd(L))
+    // Check: outer tag==5, L tag==5, R tag==5
+    //   R.left = pair(5, pair(ψ, φ))  [Implies(ψ,φ)]
+    //   R.right = pair(6, pair(φ, ψ)) [Iff(φ,ψ)]
+    let outer_content = cs_snd(CompSpec::Id);  // pair(L, R)
+    let l = cs_fst(outer_content);              // L
+    let r = cs_snd(outer_content);              // R
+    let phi = cs_fst(cs_snd(l));                // φ from L = pair(5, pair(φ, ψ))
+    let psi = cs_snd(cs_snd(l));                // ψ from L
+
+    cs_and(
+        cs_eq(cs_fst(CompSpec::Id), cs_const(5)),   // outer tag == Implies
+        cs_and(
+            cs_eq(cs_fst(l), cs_const(5)),           // L tag == Implies
+            cs_and(
+                cs_eq(cs_fst(r), cs_const(5)),       // R tag == Implies
+                cs_and(
+                    // R.left == pair(5, pair(ψ, φ))
+                    cs_eq(cs_fst(cs_snd(r)),
+                        CompSpec::CantorPair {
+                            left: Box::new(cs_const(5)),
+                            right: Box::new(CompSpec::CantorPair {
+                                left: Box::new(psi),
+                                right: Box::new(phi),
+                            }),
+                        }),
+                    // R.right == pair(6, pair(φ, ψ))
+                    cs_eq(cs_snd(cs_snd(r)),
+                        CompSpec::CantorPair {
+                            left: Box::new(cs_const(6)),
+                            right: Box::new(cs_snd(l)),  // pair(φ, ψ) = snd(L)
+                        }),
                 )
             )
         )
     )
+}
+
+/// Check: is_axiom_hyp_syllogism at encoding level.
+/// f = Implies(Implies(φ,ψ), Implies(Implies(ψ,χ), Implies(φ,χ)))
+/// Check by extracting φ,ψ,χ from the structure and verifying consistency.
+pub open spec fn check_axiom_hyp_syllogism() -> CompSpec {
+    // f = pair(5, pair(pair(5, pair(φ,ψ)), pair(5, pair(pair(5, pair(ψ',χ)), pair(5, pair(φ',χ'))))))
+    // Check: all Implies tags, ψ==ψ', φ==φ', χ==χ'
+    let content = cs_snd(CompSpec::Id);        // pair(L, R)
+    let l = cs_fst(content);                    // L = pair(5, pair(φ, ψ))
+    let r = cs_snd(content);                    // R = pair(5, pair(M, N))
+    let phi = cs_fst(cs_snd(l));                // φ
+    let psi = cs_snd(cs_snd(l));                // ψ
+    let m = cs_fst(cs_snd(r));                  // M = pair(5, pair(ψ', χ))
+    let n = cs_snd(cs_snd(r));                  // N = pair(5, pair(φ', χ'))
+
+    cs_and(
+        cs_eq(cs_fst(CompSpec::Id), cs_const(5)),  // outer Implies
+        cs_and(
+            cs_eq(cs_fst(l), cs_const(5)),          // L = Implies
+            cs_and(
+                cs_eq(cs_fst(r), cs_const(5)),      // R = Implies
+                cs_and(
+                    cs_eq(cs_fst(m), cs_const(5)),  // M = Implies
+                    cs_and(
+                        cs_eq(cs_fst(n), cs_const(5)),  // N = Implies
+                        cs_and(
+                            // ψ == ψ' (M's left == L's right)
+                            cs_eq(cs_fst(cs_snd(m)), psi),
+                            cs_and(
+                                // φ == φ' (N's left == L's left)
+                                cs_eq(cs_fst(cs_snd(n)), phi),
+                                // χ == χ' (N's right == M's right)
+                                cs_eq(cs_snd(cs_snd(n)), cs_snd(cs_snd(m))),
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    )
+}
+
+/// Check: is_axiom_quantifier_dist at encoding level.
+/// f = Implies(Forall(v, Implies(φ,ψ)), Implies(Forall(v,φ), Forall(v,ψ)))
+pub open spec fn check_axiom_quantifier_dist() -> CompSpec {
+    let content = cs_snd(CompSpec::Id);
+    let l = cs_fst(content);           // Forall(v, Implies(φ,ψ))
+    let r = cs_snd(content);           // Implies(Forall(v,φ), Forall(v,ψ))
+    let v = cs_fst(cs_snd(l));         // v (from Forall)
+    let body = cs_snd(cs_snd(l));      // Implies(φ,ψ)
+    let phi = cs_fst(cs_snd(body));    // φ
+    let psi = cs_snd(cs_snd(body));    // ψ
+
+    cs_and(
+        cs_eq(cs_fst(CompSpec::Id), cs_const(5)),  // outer Implies
+        cs_and(
+            cs_eq(cs_fst(l), cs_const(7)),          // L = Forall
+            cs_and(
+                cs_eq(cs_fst(body), cs_const(5)),   // body = Implies
+                cs_and(
+                    cs_eq(cs_fst(r), cs_const(5)),  // R = Implies
+                    cs_and(
+                        // R.left == pair(7, pair(v, φ)) = Forall(v, φ)
+                        cs_eq(cs_fst(cs_snd(r)),
+                            CompSpec::CantorPair {
+                                left: Box::new(cs_const(7)),
+                                right: Box::new(CompSpec::CantorPair {
+                                    left: Box::new(v),
+                                    right: Box::new(phi),
+                                }),
+                            }),
+                        // R.right == pair(7, pair(v, ψ)) = Forall(v, ψ)
+                        cs_eq(cs_snd(cs_snd(r)),
+                            CompSpec::CantorPair {
+                                left: Box::new(cs_const(7)),
+                                right: Box::new(CompSpec::CantorPair {
+                                    left: Box::new(v),
+                                    right: Box::new(psi),
+                                }),
+                            }),
+                    )
+                )
+            )
+        )
+    )
+}
+
+/// Check LogicAxiom justification: formula matches one of the axiom schemas.
+/// Input: formula_enc
+/// Checks all pattern-matchable schemas. Schemas requiring substitution
+/// or free-var checking (universal_inst, vacuous_quant, eq_subst) use
+/// placeholder checks for now.
+pub open spec fn check_logic_axiom() -> CompSpec {
+    cs_or(check_axiom_identity(),
+    cs_or(check_axiom_eq_refl(),
+    cs_or(check_axiom_iff_elim_left(),
+    cs_or(check_axiom_iff_elim_right(),
+    cs_or(check_axiom_iff_intro(),
+    cs_or(check_axiom_hyp_syllogism(),
+    cs_or(check_axiom_quantifier_dist(),
+        // TODO: universal_inst, vacuous_quant, eq_subst_left, eq_subst_right
+        // These require substitution/free-var checking in CompSpec
+        cs_const(0)
+    )))))))
 }
 
 /// Check Assumption justification: formula is a ZFC axiom.
