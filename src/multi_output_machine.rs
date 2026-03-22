@@ -164,15 +164,16 @@ proof fn lemma_triple_dist_inner(
         assert(c1.pc == start_pc + 5);
         assert(c1.registers == c.registers);
     } else {
-        let c1 = step(m, c).unwrap();   // DecJump: dec src, pc+1
-        assert(c1.pc == start_pc + 1);
-        let c2 = step(m, c1).unwrap();   // Inc d1
-        assert(c2.pc == start_pc + 2);
-        let c3 = step(m, c2).unwrap();   // Inc d2
-        assert(c3.pc == start_pc + 3);
-        let c4 = step(m, c3).unwrap();   // Inc d3
-        assert(c4.pc == start_pc + 4);
-        let c5 = step(m, c4).unwrap();   // DecJump scratch=0: jump to start
+        assert(!is_halted(m, c));
+        let c1 = step(m, c).unwrap();
+        assert(!is_halted(m, c1));
+        let c2 = step(m, c1).unwrap();
+        assert(!is_halted(m, c2));
+        let c3 = step(m, c2).unwrap();
+        assert(!is_halted(m, c3));
+        let c4 = step(m, c3).unwrap();
+        assert(!is_halted(m, c4));
+        let c5 = step(m, c4).unwrap();
         assert(c5.pc == start_pc);
         assert(c5.registers[src as int] == (remaining - 1) as nat);
         assert(c5.registers[d1 as int] == acc + 1);
@@ -222,10 +223,11 @@ proof fn lemma_copy_loop_inner(
         assert(c1.pc == start_pc + 3);
         assert(c1.registers == c.registers);
     } else {
+        assert(!is_halted(m, c));
         let c1 = step(m, c).unwrap();
-        assert(c1.pc == start_pc + 1);
+        assert(!is_halted(m, c1));
         let c2 = step(m, c1).unwrap();
-        assert(c2.pc == start_pc + 2);
+        assert(!is_halted(m, c2));
         let c3 = step(m, c2).unwrap();
         assert(c3.pc == start_pc);
         assert(c3.registers[src as int] == (remaining - 1) as nat);
