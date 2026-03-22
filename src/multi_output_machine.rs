@@ -4,6 +4,18 @@ use crate::machine::*;
 verus! {
 
 // ============================================================
+// Instruction constructors (avoids struct literal parsing issues in requires)
+// ============================================================
+
+pub open spec fn mk_inc(r: nat) -> Instruction {
+    Instruction::Inc { register: r }
+}
+
+pub open spec fn mk_dj(r: nat, t: nat) -> Instruction {
+    Instruction::DecJump { register: r, target: t }
+}
+
+// ============================================================
 // Instruction primitives
 // ============================================================
 
@@ -117,13 +129,11 @@ proof fn lemma_triple_dist_inner(
 )
     requires
         start_pc + 5 <= m.instructions.len(),
-        m.instructions[start_pc as int] ==
-            Instruction::DecJump { register: src, target: start_pc + 5 },
-        m.instructions[(start_pc + 1) as int] == Instruction::Inc { register: d1 },
-        m.instructions[(start_pc + 2) as int] == Instruction::Inc { register: d2 },
-        m.instructions[(start_pc + 3) as int] == Instruction::Inc { register: d3 },
-        m.instructions[(start_pc + 4) as int] ==
-            Instruction::DecJump { register: scratch, target: start_pc },
+        m.instructions[start_pc as int] == mk_dj(src, start_pc + 5),
+        m.instructions[(start_pc + 1) as int] == mk_inc(d1),
+        m.instructions[(start_pc + 2) as int] == mk_inc(d2),
+        m.instructions[(start_pc + 3) as int] == mk_inc(d3),
+        m.instructions[(start_pc + 4) as int] == mk_dj(scratch, start_pc),
         c.pc == start_pc,
         c.registers.len() == m.num_regs,
         c.registers[src as int] == remaining,
@@ -169,7 +179,6 @@ proof fn lemma_triple_dist_inner(
         assert(c5.registers[d2 as int] == acc + 1);
         assert(c5.registers[d3 as int] == acc + 1);
         assert(c5.registers[scratch as int] == 0);
-        assert(run(m, c, 5) == c5);
         lemma_triple_dist_inner(m, c5, src, d1, d2, d3, scratch,
             start_pc, orig_val, acc + 1, (remaining - 1) as nat);
     }
@@ -188,11 +197,9 @@ proof fn lemma_copy_loop_inner(
 )
     requires
         start_pc + 3 <= m.instructions.len(),
-        m.instructions[start_pc as int] ==
-            Instruction::DecJump { register: src, target: start_pc + 3 },
-        m.instructions[(start_pc + 1) as int] == Instruction::Inc { register: dst },
-        m.instructions[(start_pc + 2) as int] ==
-            Instruction::DecJump { register: scratch, target: start_pc },
+        m.instructions[start_pc as int] == mk_dj(src, start_pc + 3),
+        m.instructions[(start_pc + 1) as int] == mk_inc(dst),
+        m.instructions[(start_pc + 2) as int] == mk_dj(scratch, start_pc),
         c.pc == start_pc,
         c.registers.len() == m.num_regs,
         c.registers[src as int] == remaining,
@@ -224,7 +231,6 @@ proof fn lemma_copy_loop_inner(
         assert(c3.registers[src as int] == (remaining - 1) as nat);
         assert(c3.registers[dst as int] == acc + 1);
         assert(c3.registers[scratch as int] == 0);
-        assert(run(m, c, 3) == c3);
         lemma_copy_loop_inner(m, c3, src, dst, scratch, start_pc,
             orig_val, acc + 1, (remaining - 1) as nat);
     }
@@ -293,7 +299,7 @@ proof fn lemma_embed_step_sim(
     let s_m = step(m, c).unwrap();
     match instr {
         Instruction::Inc { register: r } => {
-            assert(m_instr == Instruction::Inc { register: r + reg_offset });
+            assert(m_instr == mk_inc(r + reg_offset));
             assert forall|j: int| 0 <= j < rm_sub.num_regs as int implies
                 s_m.registers[(j + reg_offset) as int] == s_sub.registers[j]
             by {
@@ -306,8 +312,7 @@ proof fn lemma_embed_step_sim(
             };
         },
         Instruction::DecJump { register: r, target: t } => {
-            assert(m_instr == Instruction::DecJump {
-                register: r + reg_offset, target: t + pc_offset });
+            assert(m_instr == mk_dj(r + reg_offset, t + pc_offset));
             assert(c.registers[(r + reg_offset) as int] == c_sub.registers[r as int]);
             assert forall|j: int| 0 <= j < rm_sub.num_regs as int implies
                 s_m.registers[(j + reg_offset) as int] == s_sub.registers[j]
@@ -373,8 +378,7 @@ proof fn lemma_embed_reaches_target(
             let embedded = embed_instructions(
                 rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch);
             assert(m.instructions[c.pc as int] == embedded[c_sub.pc as int]);
-            assert(m.instructions[c.pc as int] ==
-                Instruction::DecJump { register: scratch, target: halt_target });
+            assert(m.instructions[c.pc as int] == mk_dj(scratch, halt_target));
             let next = step(m, c).unwrap();
             assert(next.pc == halt_target);
             assert(next.registers == c.registers);
@@ -425,10 +429,7 @@ proof fn lemma_build_multi_output_wf(
     let b2: nat = 4 + rm_h.num_regs + rm_1.num_regs;
     let scratch: nat = 3;
     let nr = m.num_regs;
-    let total_len = m.instructions.len();
-
-    // PC boundaries
-    let p0: nat = 0;
+    let tl = m.instructions.len();
     let p1: nat = 5;
     let p2: nat = 5 + n_h;
     let p3: nat = 8 + n_h;
@@ -436,94 +437,25 @@ proof fn lemma_build_multi_output_wf(
     let p5: nat = 11 + n_h + n_1;
     let p6: nat = 11 + n_h + n_1 + n_2;
     let p7: nat = 14 + n_h + n_1 + n_2;
-
-    assert(total_len == p7 + 1);
-    assert(nr >= 4);
+    assert(tl == p7 + 1);
 
     assert forall|i: int| #![trigger m.instructions[i]]
-        0 <= i < total_len as int
+        0 <= i < tl as int
     implies match m.instructions[i] {
         Instruction::Inc { register } => register < nr,
         Instruction::DecJump { register, target } =>
-            register < nr && target <= total_len,
+            register < nr && target <= tl,
         Instruction::Halt => true,
     } by {
+        // Each region: identify the instruction and check bounds
         if i < p1 as int {
-            // Triple distribute: regs 0, bh, b1, b2, scratch — all < nr
-            // targets: p0, p0+5 — both <= total_len
         } else if i < p2 as int {
-            // Embedded rm_h
-            let j = i - p1 as int;
-            assert(0 <= j < n_h as int);
-            match rm_h.instructions[j] {
-                Instruction::Inc { register: r } => {
-                    assert(m.instructions[i] == Instruction::Inc { register: r + bh });
-                    assert(r < rm_h.num_regs);
-                    assert(r + bh < nr);
-                },
-                Instruction::DecJump { register: r, target: t } => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: r + bh, target: t + p1 });
-                    assert(r < rm_h.num_regs);
-                    assert(t <= n_h);
-                    assert(r + bh < nr);
-                    assert(t + p1 <= total_len);
-                },
-                Instruction::Halt => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: scratch, target: p2 });
-                    assert(scratch < nr);
-                    assert(p2 <= total_len);
-                },
-            }
         } else if i < p3 as int {
-            // Copy bank_h[0] → reg 0: regs bh, 0, scratch
         } else if i < p4 as int {
-            // Embedded rm_1
-            let j = i - p3 as int;
-            assert(0 <= j < n_1 as int);
-            match rm_1.instructions[j] {
-                Instruction::Inc { register: r } => {
-                    assert(m.instructions[i] == Instruction::Inc { register: r + b1 });
-                    assert(r + b1 < nr);
-                },
-                Instruction::DecJump { register: r, target: t } => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: r + b1, target: t + p3 });
-                    assert(r + b1 < nr);
-                    assert(t + p3 <= total_len);
-                },
-                Instruction::Halt => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: scratch, target: p4 });
-                },
-            }
         } else if i < p5 as int {
-            // Copy bank_1[0] → reg 1: regs b1, 1, scratch
         } else if i < p6 as int {
-            // Embedded rm_2
-            let j = i - p5 as int;
-            assert(0 <= j < n_2 as int);
-            match rm_2.instructions[j] {
-                Instruction::Inc { register: r } => {
-                    assert(m.instructions[i] == Instruction::Inc { register: r + b2 });
-                    assert(r + b2 < nr);
-                },
-                Instruction::DecJump { register: r, target: t } => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: r + b2, target: t + p5 });
-                    assert(r + b2 < nr);
-                    assert(t + p5 <= total_len);
-                },
-                Instruction::Halt => {
-                    assert(m.instructions[i] == Instruction::DecJump {
-                        register: scratch, target: p6 });
-                },
-            }
         } else if i < p7 as int {
-            // Copy bank_2[0] → reg 2: regs b2, 2, scratch
         } else {
-            // Halt
         }
     };
 }
