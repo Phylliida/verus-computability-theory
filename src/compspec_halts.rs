@@ -8,6 +8,7 @@ use crate::zfc::*;
 use crate::zfc_enumerator::*;
 use crate::enumerator_computable::*;
 use crate::compspec_decode::*;
+use crate::compspec_eval_helpers::*;
 
 verus! {
 
@@ -1493,24 +1494,8 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     assume(eval_comp(check_is_sentence(), f_enc) != 0);
 }
 
-/// Helper: eval_comp(last_formula_enc(), s) extracts the conclusion formula encoding.
-/// This is the same proof chain as lemma_output_eval_chain steps 1-4 in compspec_decode.rs.
-/// Cannot be placed in compspec_decode.rs due to module trigger pollution (rlimit).
-/// Placed here with assume — the proof follows identically to lemma_output_eval_chain.
-proof fn lemma_eval_last_formula_enc(s: nat, p: Proof)
-    requires
-        encode_proof(p) == s,
-        p.lines.len() > 0,
-        conclusion_is_iff_of_sentences(proof_conclusion(p)),
-    ensures
-        eval_comp(last_formula_enc(), s) == encode(proof_conclusion(p)),
-{
-    // The proof is identical to lemma_output_eval_chain steps 1-4 in compspec_decode.rs.
-    // It verifies there but hits rlimit here due to module trigger pollution from the
-    // large CompSpec definitions in this file. The mathematical content is sound:
-    // get_last_pair_correct → encode_nat_seq_structure → unpair1_pair gives the chain.
-    assume(eval_comp(last_formula_enc(), s) == encode(proof_conclusion(p)));
-}
+// lemma_eval_last_formula_enc is in compspec_eval_helpers.rs
+// (isolated file to avoid module trigger pollution from large CompSpec definitions)
 
 /// Backward: for valid proof codes, check_conclusion_iff_sentence returns nonzero.
 proof fn lemma_conclusion_check_backward(s: nat, p: Proof)
