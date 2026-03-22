@@ -295,10 +295,11 @@ pub proof fn lemma_reaches_n(
             assert(rm2.instructions[c2.pc as int] ==
                 Instruction::DecJump { register: scratch, target: n });
             // scratch is 0, so jump to n
+            assert(!is_halted(rm2, c2));
             let next = step(rm2, c2).unwrap();
             assert(next.pc == n);
             assert(next.registers == c2.registers);
-            assert(run(rm2, c2, 1) == next);
+            // run(rm2, c2, 1): step is Some(next), run(next, 0) = next (by def)
             // !run_halts(rm2, c2, 0): DecJump is not Halt
         }
     } else {
@@ -368,13 +369,22 @@ pub proof fn lemma_at_n_halts(
     let rm2 = build_cond_halt(rm);
     let n = rm.instructions.len();
     // Instruction at n: DecJump{0, n}. reg[0] > 0: decrement, pc = n+1.
+    assert(!is_halted(rm2, c));
     let c1 = step(rm2, c).unwrap();
     assert(c1.pc == n + 1);
     assert(c1.registers == c.registers.update(0, (c.registers[0] - 1) as nat));
     // Instruction at n+1: Halt
     assert(is_halted(rm2, c1));
-    // run(rm2, c, 1) = c1; run(rm2, c, 2) = c1 (halted)
+    // Explicitly unfold run
+    // run(rm2, c, 1) = run(rm2, c1, 0) = c1
+    assert(run(rm2, c1, 0) == c1);
+    // run(rm2, c, 2) = run(rm2, c1, 1)
     lemma_halted_run_identity(rm2, c1, 1);
+    assert(run(rm2, c1, 1) == c1);
+    // run_halts(rm2, c, 2): !is_halted(c), step = Some(c1), run_halts(c1, 1)?
+    // run_halts(rm2, c1, 1) = is_halted(c1) || ... = true
+    assert(run_halts(rm2, c1, 1));
+    // So run_halts(rm2, c, 2)
     assert(c1.registers[1] == c.registers[1]);
     assert(c1.registers[2] == c.registers[2]);
 }
@@ -426,9 +436,14 @@ pub proof fn lemma_run_halts_split(
     decreases f1,
 {
     if f1 == 0 {
-        // !is_halted(m, c), step is Some
-        let _next = step(m, c).unwrap();
+        // !run_halts at 0 means !is_halted
+        assert(!is_halted(m, c));
+        let next = step(m, c).unwrap();
+        // run(m, c, 1) = next
+        assert(run(m, c, 1) == run(m, next, 0));
+        // run_halts(m, c, f2+1) = is_halted(c) || run_halts(next, f2) = run_halts(next, f2)
     } else {
+        assert(!is_halted(m, c));
         let next = step(m, c).unwrap();
         lemma_run_halts_split(m, next, (f1 - 1) as nat, f2);
     }
@@ -449,8 +464,11 @@ pub proof fn lemma_run_split(
     decreases f1,
 {
     if f1 == 0 {
-        let _next = step(m, c).unwrap();
+        assert(!is_halted(m, c));
+        let next = step(m, c).unwrap();
+        assert(run(m, c, 1) == run(m, next, 0));
     } else {
+        assert(!is_halted(m, c));
         let next = step(m, c).unwrap();
         lemma_run_split(m, next, (f1 - 1) as nat, f2);
     }
