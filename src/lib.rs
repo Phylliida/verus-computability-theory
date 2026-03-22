@@ -41,6 +41,9 @@ pub mod multi_output_primitives;
 pub mod multi_output_machine;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_decode;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]

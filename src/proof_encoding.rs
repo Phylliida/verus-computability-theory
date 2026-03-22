@@ -195,4 +195,80 @@ pub proof fn lemma_encode_proof_injective(p1: Proof, p2: Proof)
     assert(p1.lines =~= p2.lines);
 }
 
+// ============================================================
+// Decode: last element of encoded nat sequence
+// ============================================================
+
+/// Spec function: recursively find last element of encoded nat sequence.
+pub open spec fn decode_nat_seq_last(enc: nat) -> nat
+    decreases enc,
+{
+    if enc == 0 {
+        0  // undefined for empty
+    } else if unpair2(enc) == 0 {
+        (unpair1(enc) - 1) as nat
+    } else {
+        decode_nat_seq_last(unpair2(enc))
+    }
+}
+
+/// For non-empty sequences, decode_nat_seq_last recovers the last element.
+pub proof fn lemma_decode_nat_seq_last(s: Seq<nat>)
+    requires
+        s.len() > 0,
+    ensures
+        decode_nat_seq_last(encode_nat_seq(s)) == s[s.len() - 1],
+    decreases s.len(),
+{
+    let enc = encode_nat_seq(s);
+    let tail_seq = s.subrange(1, s.len() as int);
+    let tail_enc = encode_nat_seq(tail_seq);
+
+    // enc = pair(s[0] + 1, tail_enc)
+    lemma_unpair1_pair(s[0] + 1, tail_enc);
+    lemma_unpair2_pair(s[0] + 1, tail_enc);
+    assert(unpair1(enc) == s[0] + 1);
+    assert(unpair2(enc) == tail_enc);
+
+    if s.len() == 1 {
+        // tail_seq is empty, tail_enc = 0
+        assert(tail_seq.len() == 0);
+        assert(tail_enc == 0);
+        assert(unpair2(enc) == 0);
+        // decode_nat_seq_last(enc) = unpair1(enc) - 1 = s[0] + 1 - 1 = s[0]
+        assert(decode_nat_seq_last(enc) == s[0]);
+    } else {
+        // tail is non-empty
+        assert(tail_seq.len() > 0);
+        lemma_encode_nat_seq_nonempty(tail_seq);
+        assert(tail_enc > 0);
+        assert(unpair2(enc) != 0);
+        // decode_nat_seq_last(enc) = decode_nat_seq_last(tail_enc)
+        // Need: tail_enc < enc for decreases
+        lemma_pair_pos_tag_gt_content(s[0] + 1, tail_enc);
+        assert(enc > tail_enc);
+        // By induction: decode_nat_seq_last(tail_enc) = tail_seq.last()
+        lemma_decode_nat_seq_last(tail_seq);
+        assert(decode_nat_seq_last(tail_enc) == tail_seq[tail_seq.len() - 1]);
+        // tail_seq.last() == s.last()
+        assert(tail_seq[tail_seq.len() - 1] == s[s.len() - 1]);
+    }
+}
+
+/// For non-empty sequences, unpair1 of the last pair is last_element + 1.
+pub proof fn lemma_encode_nat_seq_structure(s: Seq<nat>)
+    requires
+        s.len() > 0,
+    ensures
+        encode_nat_seq(s) != 0,
+        unpair1(encode_nat_seq(s)) == s[0] + 1,
+        unpair2(encode_nat_seq(s)) == encode_nat_seq(s.subrange(1, s.len() as int)),
+{
+    let enc = encode_nat_seq(s);
+    let tail = s.subrange(1, s.len() as int);
+    lemma_encode_nat_seq_nonempty(s);
+    lemma_unpair1_pair(s[0] + 1, encode_nat_seq(tail));
+    lemma_unpair2_pair(s[0] + 1, encode_nat_seq(tail));
+}
+
 } // verus!
