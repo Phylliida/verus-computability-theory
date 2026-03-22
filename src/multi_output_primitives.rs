@@ -4,6 +4,23 @@ use crate::machine::*;
 verus! {
 
 // ============================================================
+// Helper: connect run(m, c, fuel) with step when fuel == 1
+// ============================================================
+
+/// When !is_halted and fuel > 0, run(m, c, fuel) == run(m, step(m, c).unwrap(), fuel - 1).
+/// This is a direct consequence of the run definition, but z3 needs help unfolding
+/// when the fuel expression involves nonlinear arithmetic (e.g. 5 * 0 + 1).
+proof fn lemma_run_unfold_step(m: RegisterMachine, c: Configuration, fuel: nat)
+    requires
+        !is_halted(m, c),
+        fuel > 0,
+    ensures
+        step(m, c) is Some,
+        run(m, c, fuel) == run(m, step(m, c).unwrap(), (fuel - 1) as nat),
+{
+}
+
+// ============================================================
 // Instruction constructors (avoids struct literal parsing issues in requires)
 // ============================================================
 
@@ -87,7 +104,7 @@ pub open spec fn embed_configs_agree(
 // Triple distribute loop proof
 // ============================================================
 
-#[verifier::rlimit(500)]
+#[verifier::rlimit(1000)]
 pub proof fn lemma_triple_dist_inner(
     m: RegisterMachine,
     c: Configuration,
@@ -128,19 +145,38 @@ pub proof fn lemma_triple_dist_inner(
     decreases remaining,
 {
     if remaining == 0 {
+        assert(5 * remaining + 1 > 0) by(nonlinear_arith)
+            requires remaining == 0;
+        assert(!is_halted(m, c));
+        lemma_run_unfold_step(m, c, 5 * remaining + 1);
         let c1 = step(m, c).unwrap();
         assert(c1.pc == start_pc + 5);
         assert(c1.registers == c.registers);
+        assert((5 * remaining + 1 - 1) as nat == 0nat) by(nonlinear_arith)
+            requires remaining == 0;
+        assert(run(m, c1, (5 * remaining + 1 - 1) as nat) == c1);
+        assert(run(m, c, 5 * remaining + 1) == c1);
+        assert(run(m, c, 5 * remaining + 1).pc == start_pc + 5);
+        assert(run(m, c, 5 * remaining + 1).registers =~= c.registers);
     } else {
         assert(!is_halted(m, c));
+        lemma_run_unfold_step(m, c, 5 * remaining + 1);
         let c1 = step(m, c).unwrap();
         assert(!is_halted(m, c1));
+        assert(5 * remaining + 1 - 1 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c1, (5 * remaining + 1 - 1) as nat);
         let c2 = step(m, c1).unwrap();
         assert(!is_halted(m, c2));
+        assert(5 * remaining + 1 - 2 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c2, (5 * remaining + 1 - 2) as nat);
         let c3 = step(m, c2).unwrap();
         assert(!is_halted(m, c3));
+        assert(5 * remaining + 1 - 3 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c3, (5 * remaining + 1 - 3) as nat);
         let c4 = step(m, c3).unwrap();
         assert(!is_halted(m, c4));
+        assert(5 * remaining + 1 - 4 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c4, (5 * remaining + 1 - 4) as nat);
         let c5 = step(m, c4).unwrap();
         assert(c5.pc == start_pc);
         assert(c5.registers[src as int] == (remaining - 1) as nat);
@@ -148,10 +184,17 @@ pub proof fn lemma_triple_dist_inner(
         assert(c5.registers[d2 as int] == acc + 1);
         assert(c5.registers[d3 as int] == acc + 1);
         assert(c5.registers[scratch as int] == 0);
-        // Arithmetic: 5 * remaining + 1 == 5 + (5 * (remaining - 1) + 1)
-        assert(5 * remaining + 1 == 5 + (5 * ((remaining - 1) as nat) + 1));
+        assert((5 * remaining + 1 - 5) as nat == (5 * ((remaining - 1) as nat) + 1) as nat) by(nonlinear_arith)
+            requires remaining > 0;
         lemma_triple_dist_inner(m, c5, src, d1, d2, d3, scratch,
             start_pc, orig_val, acc + 1, (remaining - 1) as nat);
+        // Help z3 with register preservation through the 5 steps
+        assert forall|r: int| 0 <= r < m.num_regs as int
+            && r != src as int && r != d1 as int && r != d2 as int && r != d3 as int
+        implies run(m, c, 5 * remaining + 1).registers[r] == c.registers[r]
+        by {
+            assert(c5.registers[r] == c.registers[r]);
+        };
     }
 }
 
@@ -159,7 +202,7 @@ pub proof fn lemma_triple_dist_inner(
 // Destructive copy loop proof
 // ============================================================
 
-#[verifier::rlimit(500)]
+#[verifier::rlimit(1000)]
 pub proof fn lemma_copy_loop_inner(
     m: RegisterMachine,
     c: Configuration,
@@ -190,23 +233,45 @@ pub proof fn lemma_copy_loop_inner(
     decreases remaining,
 {
     if remaining == 0 {
+        assert(3 * remaining + 1 > 0) by(nonlinear_arith)
+            requires remaining == 0;
+        assert(!is_halted(m, c));
+        lemma_run_unfold_step(m, c, 3 * remaining + 1);
         let c1 = step(m, c).unwrap();
         assert(c1.pc == start_pc + 3);
         assert(c1.registers == c.registers);
+        assert((3 * remaining + 1 - 1) as nat == 0nat) by(nonlinear_arith)
+            requires remaining == 0;
+        assert(run(m, c1, (3 * remaining + 1 - 1) as nat) == c1);
+        assert(run(m, c, 3 * remaining + 1) == c1);
+        assert(run(m, c, 3 * remaining + 1).pc == start_pc + 3);
+        assert(run(m, c, 3 * remaining + 1).registers =~= c.registers);
     } else {
         assert(!is_halted(m, c));
+        lemma_run_unfold_step(m, c, 3 * remaining + 1);
         let c1 = step(m, c).unwrap();
         assert(!is_halted(m, c1));
+        assert(3 * remaining + 1 - 1 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c1, (3 * remaining + 1 - 1) as nat);
         let c2 = step(m, c1).unwrap();
         assert(!is_halted(m, c2));
+        assert(3 * remaining + 1 - 2 >= 1) by(nonlinear_arith) requires remaining > 0;
+        lemma_run_unfold_step(m, c2, (3 * remaining + 1 - 2) as nat);
         let c3 = step(m, c2).unwrap();
         assert(c3.pc == start_pc);
         assert(c3.registers[src as int] == (remaining - 1) as nat);
         assert(c3.registers[dst as int] == acc + 1);
         assert(c3.registers[scratch as int] == 0);
-        assert(3 * remaining + 1 == 3 + (3 * ((remaining - 1) as nat) + 1));
+        assert((3 * remaining + 1 - 3) as nat == (3 * ((remaining - 1) as nat) + 1) as nat) by(nonlinear_arith)
+            requires remaining > 0;
         lemma_copy_loop_inner(m, c3, src, dst, scratch, start_pc,
             orig_val, acc + 1, (remaining - 1) as nat);
+        // Help z3 with register preservation through the 3 steps
+        assert forall|r: int| 0 <= r < m.num_regs as int && r != src as int && r != dst as int
+        implies run(m, c, 3 * remaining + 1).registers[r] == c.registers[r]
+        by {
+            assert(c3.registers[r] == c.registers[r]);
+        };
     }
 }
 
@@ -330,18 +395,37 @@ pub proof fn lemma_embed_reaches_target(
     let n = rm_sub.instructions.len();
     if is_halted(rm_sub, c_sub) {
         lemma_halted_run_identity(rm_sub, c_sub, fuel);
+        let c_sub_halt = run(rm_sub, c_sub, fuel);
         if c_sub.pc >= n {
             assert(c_sub.pc == n);
             assert(c.pc == halt_target);
+            // Witness g = 0: run(m, c, 0) == c, c.pc == halt_target
+            let g: nat = 0;
+            assert(run(m, c, g).pc == halt_target);
+            assert(forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
+                run(m, c, g).registers[(r + reg_offset) as int] == c_sub_halt.registers[r]);
+            assert(run(m, c, g).registers[scratch as int] == 0);
+            assert(run(m, c, g).registers.len() == m.num_regs);
         } else {
             assert(rm_sub.instructions[c_sub.pc as int] is Halt);
             let embedded = embed_instructions(
                 rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch);
             assert(m.instructions[c.pc as int] == embedded[c_sub.pc as int]);
             assert(m.instructions[c.pc as int] == mk_dj(scratch, halt_target));
+            assert(!is_halted(m, c));
             let next = step(m, c).unwrap();
             assert(next.pc == halt_target);
             assert(next.registers == c.registers);
+            // Witness g = 1: run(m, c, 1) == next
+            lemma_run_unfold_step(m, c, 1);
+            assert(run(m, c, 1) == run(m, next, 0));
+            assert(run(m, next, 0) == next);
+            let g: nat = 1;
+            assert(run(m, c, g).pc == halt_target);
+            assert(forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
+                run(m, c, g).registers[(r + reg_offset) as int] == c_sub_halt.registers[r]);
+            assert(run(m, c, g).registers[scratch as int] == 0);
+            assert(run(m, c, g).registers.len() == m.num_regs);
         }
     } else {
         assert(fuel > 0);
