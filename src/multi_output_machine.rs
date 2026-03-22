@@ -495,9 +495,56 @@ pub proof fn lemma_total_multi_output_machine(
                     run(rm, initial_config(rm, s), fuel).registers[2] == f_2(s)
                 )),
 {
+    let m = build_multi_output(rm_halts, rm_out1, rm_out2);
     lemma_build_multi_output_wf(rm_halts, rm_out1, rm_out2);
-    // TODO: phase composition proof
-    assume(false);
+    let n_h = rm_halts.instructions.len();
+    let n_1 = rm_out1.instructions.len();
+    let n_2 = rm_out2.instructions.len();
+    let bh: nat = 4;
+    let b1: nat = 4 + rm_halts.num_regs;
+    let b2: nat = 4 + rm_halts.num_regs + rm_out1.num_regs;
+    let scratch: nat = 3;
+    let nr = m.num_regs;
+    let p1: nat = 5;
+    let p2: nat = 5 + n_h;
+    let p3: nat = 8 + n_h;
+    let p4: nat = 8 + n_h + n_1;
+    let p5: nat = 11 + n_h + n_1;
+    let p6: nat = 11 + n_h + n_1 + n_2;
+    let p7: nat = 14 + n_h + n_1 + n_2;
+
+    // Prove halts and register correctness for each input
+    assert forall|s: nat| halts(m, s) by {
+        let init = initial_config(m, s);
+
+        // Phase 0: triple distribute input to banks
+        // Instructions at 0..5 are the triple distribute
+        assert(m.instructions[0] == mk_dj(0, 5));
+        assert(m.instructions[1] == mk_inc(bh));
+        assert(m.instructions[2] == mk_inc(b1));
+        assert(m.instructions[3] == mk_inc(b2));
+        assert(m.instructions[4] == mk_dj(scratch, 0));
+        lemma_triple_dist_inner(m, init, 0, bh, b1, b2, scratch,
+            0, s, 0, s);
+        let c0 = run(m, init, 5 * s + 1);
+        // c0.pc == 5 = p1, banks have input s, reg0 = 0, scratch = 0
+
+        // Phase 1: embedded rm_halts
+        assert(c0.pc == p1);
+        // TODO: establish embed_configs_agree, call lemma_embed_reaches_target
+        // Phase 2-7: remaining phases
+        assume(false); // placeholder for remaining composition
+    };
+
+    assert forall|s: nat, fuel: nat|
+        run_halts(m, initial_config(m, s), fuel)
+    implies (
+        run(m, initial_config(m, s), fuel).registers[0] == f_h(s) &&
+        run(m, initial_config(m, s), fuel).registers[1] == f_1(s) &&
+        run(m, initial_config(m, s), fuel).registers[2] == f_2(s)
+    ) by {
+        assume(false); // placeholder
+    };
 }
 
 } // verus!
