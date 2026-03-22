@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::pairing::*;
 use crate::machine::*;
 use crate::conditional_halt::*;
+use crate::multi_output_machine::*;
 
 verus! {
 
@@ -162,7 +163,6 @@ pub proof fn axiom_comp_spec_total(c: CompSpec)
 /// Register copying (dec-source/inc-target loops) and input restoration
 /// are standard register machine primitives. Since all sub-machines are
 /// total, the combined machine always halts.
-#[verifier::external_body]
 pub proof fn axiom_total_multi_output_machine(
     rm_halts: RegisterMachine,
     rm_out1: RegisterMachine,
@@ -192,6 +192,7 @@ pub proof fn axiom_total_multi_output_machine(
                     run(rm, initial_config(rm, s), fuel).registers[2] == f_2(s)
                 )),
 {
+    lemma_total_multi_output_machine(rm_halts, rm_out1, rm_out2, f_h, f_1, f_2);
 }
 
 /// Sub-axiom B: A total multi-output machine can be converted into

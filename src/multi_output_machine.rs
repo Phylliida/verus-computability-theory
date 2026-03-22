@@ -1,68 +1,9 @@
 use vstd::prelude::*;
 use crate::machine::*;
+use crate::conditional_halt::{lemma_run_split, lemma_run_halts_split};
+use crate::multi_output_primitives::*;
 
 verus! {
-
-// ============================================================
-// Instruction constructors (avoids struct literal parsing issues in requires)
-// ============================================================
-
-pub open spec fn mk_inc(r: nat) -> Instruction {
-    Instruction::Inc { register: r }
-}
-
-pub open spec fn mk_dj(r: nat, t: nat) -> Instruction {
-    Instruction::DecJump { register: r, target: t }
-}
-
-// ============================================================
-// Instruction primitives
-// ============================================================
-
-/// Shift register indices and PC offsets in an instruction sequence.
-/// Halts are replaced with DecJump{scratch, halt_target} (unconditional jump).
-pub open spec fn embed_instructions(
-    instrs: Seq<Instruction>,
-    reg_offset: nat,
-    pc_offset: nat,
-    halt_target: nat,
-    scratch_reg: nat,
-) -> Seq<Instruction> {
-    Seq::new(instrs.len(), |i: int| match instrs[i] {
-        Instruction::Inc { register } =>
-            Instruction::Inc { register: register + reg_offset },
-        Instruction::DecJump { register, target } =>
-            Instruction::DecJump { register: register + reg_offset, target: target + pc_offset },
-        Instruction::Halt =>
-            Instruction::DecJump { register: scratch_reg, target: halt_target },
-    })
-}
-
-/// Destructive copy: src → dst (dst must start at 0, src becomes 0).
-/// 3 instructions starting at start_pc. Next instruction at start_pc + 3.
-pub open spec fn copy_instrs(
-    src: nat, dst: nat, scratch: nat, start_pc: nat,
-) -> Seq<Instruction> {
-    seq![
-        Instruction::DecJump { register: src, target: start_pc + 3 },
-        Instruction::Inc { register: dst },
-        Instruction::DecJump { register: scratch, target: start_pc },
-    ]
-}
-
-/// Triple distribute: src → (d1, d2, d3) simultaneously (src destroyed).
-/// 5 instructions starting at start_pc. Next instruction at start_pc + 5.
-pub open spec fn triple_dist_instrs(
-    src: nat, d1: nat, d2: nat, d3: nat, scratch: nat, start_pc: nat,
-) -> Seq<Instruction> {
-    seq![
-        Instruction::DecJump { register: src, target: start_pc + 5 },
-        Instruction::Inc { register: d1 },
-        Instruction::Inc { register: d2 },
-        Instruction::Inc { register: d3 },
-        Instruction::DecJump { register: scratch, target: start_pc },
-    ]
-}
 
 // ============================================================
 // Combined machine construction
@@ -113,294 +54,6 @@ pub open spec fn build_multi_output(
             + copy_instrs(b2, 2, scratch, p6)
             + seq![Instruction::Halt],
         num_regs: nr,
-    }
-}
-
-// ============================================================
-// Triple distribute loop proof
-// ============================================================
-
-proof fn lemma_triple_dist_inner(
-    m: RegisterMachine,
-    c: Configuration,
-    src: nat, d1: nat, d2: nat, d3: nat, scratch: nat,
-    start_pc: nat,
-    orig_val: nat, acc: nat, remaining: nat,
-)
-    requires
-        start_pc + 5 <= m.instructions.len(),
-        m.instructions[start_pc as int] == mk_dj(src, start_pc + 5),
-        m.instructions[(start_pc + 1) as int] == mk_inc(d1),
-        m.instructions[(start_pc + 2) as int] == mk_inc(d2),
-        m.instructions[(start_pc + 3) as int] == mk_inc(d3),
-        m.instructions[(start_pc + 4) as int] == mk_dj(scratch, start_pc),
-        c.pc == start_pc,
-        c.registers.len() == m.num_regs,
-        c.registers[src as int] == remaining,
-        c.registers[d1 as int] == acc,
-        c.registers[d2 as int] == acc,
-        c.registers[d3 as int] == acc,
-        c.registers[scratch as int] == 0,
-        src < m.num_regs, d1 < m.num_regs, d2 < m.num_regs,
-        d3 < m.num_regs, scratch < m.num_regs,
-        src != d1, src != d2, src != d3, src != scratch,
-        d1 != d2, d1 != d3, d1 != scratch,
-        d2 != d3, d2 != scratch, d3 != scratch,
-        acc + remaining == orig_val,
-    ensures
-        run(m, c, 5 * remaining + 1).pc == start_pc + 5,
-        run(m, c, 5 * remaining + 1).registers[src as int] == 0,
-        run(m, c, 5 * remaining + 1).registers[d1 as int] == orig_val,
-        run(m, c, 5 * remaining + 1).registers[d2 as int] == orig_val,
-        run(m, c, 5 * remaining + 1).registers[d3 as int] == orig_val,
-        run(m, c, 5 * remaining + 1).registers[scratch as int] == 0,
-        forall|r: int| 0 <= r < m.num_regs as int
-            && r != src as int && r != d1 as int && r != d2 as int && r != d3 as int
-            ==> run(m, c, 5 * remaining + 1).registers[r] == c.registers[r],
-    decreases remaining,
-{
-    if remaining == 0 {
-        let c1 = step(m, c).unwrap();
-        assert(c1.pc == start_pc + 5);
-        assert(c1.registers == c.registers);
-    } else {
-        assert(!is_halted(m, c));
-        let c1 = step(m, c).unwrap();
-        assert(!is_halted(m, c1));
-        let c2 = step(m, c1).unwrap();
-        assert(!is_halted(m, c2));
-        let c3 = step(m, c2).unwrap();
-        assert(!is_halted(m, c3));
-        let c4 = step(m, c3).unwrap();
-        assert(!is_halted(m, c4));
-        let c5 = step(m, c4).unwrap();
-        assert(c5.pc == start_pc);
-        assert(c5.registers[src as int] == (remaining - 1) as nat);
-        assert(c5.registers[d1 as int] == acc + 1);
-        assert(c5.registers[d2 as int] == acc + 1);
-        assert(c5.registers[d3 as int] == acc + 1);
-        assert(c5.registers[scratch as int] == 0);
-        lemma_triple_dist_inner(m, c5, src, d1, d2, d3, scratch,
-            start_pc, orig_val, acc + 1, (remaining - 1) as nat);
-    }
-}
-
-// ============================================================
-// Destructive copy loop proof
-// ============================================================
-
-proof fn lemma_copy_loop_inner(
-    m: RegisterMachine,
-    c: Configuration,
-    src: nat, dst: nat, scratch: nat,
-    start_pc: nat,
-    orig_val: nat, acc: nat, remaining: nat,
-)
-    requires
-        start_pc + 3 <= m.instructions.len(),
-        m.instructions[start_pc as int] == mk_dj(src, start_pc + 3),
-        m.instructions[(start_pc + 1) as int] == mk_inc(dst),
-        m.instructions[(start_pc + 2) as int] == mk_dj(scratch, start_pc),
-        c.pc == start_pc,
-        c.registers.len() == m.num_regs,
-        c.registers[src as int] == remaining,
-        c.registers[dst as int] == acc,
-        c.registers[scratch as int] == 0,
-        src < m.num_regs, dst < m.num_regs, scratch < m.num_regs,
-        src != dst, src != scratch, dst != scratch,
-        acc + remaining == orig_val,
-    ensures
-        run(m, c, 3 * remaining + 1).pc == start_pc + 3,
-        run(m, c, 3 * remaining + 1).registers[dst as int] == orig_val,
-        run(m, c, 3 * remaining + 1).registers[src as int] == 0,
-        run(m, c, 3 * remaining + 1).registers[scratch as int] == 0,
-        forall|r: int| 0 <= r < m.num_regs as int && r != src as int && r != dst as int
-            ==> run(m, c, 3 * remaining + 1).registers[r] == c.registers[r],
-    decreases remaining,
-{
-    if remaining == 0 {
-        let c1 = step(m, c).unwrap();
-        assert(c1.pc == start_pc + 3);
-        assert(c1.registers == c.registers);
-    } else {
-        assert(!is_halted(m, c));
-        let c1 = step(m, c).unwrap();
-        assert(!is_halted(m, c1));
-        let c2 = step(m, c1).unwrap();
-        assert(!is_halted(m, c2));
-        let c3 = step(m, c2).unwrap();
-        assert(c3.pc == start_pc);
-        assert(c3.registers[src as int] == (remaining - 1) as nat);
-        assert(c3.registers[dst as int] == acc + 1);
-        assert(c3.registers[scratch as int] == 0);
-        lemma_copy_loop_inner(m, c3, src, dst, scratch, start_pc,
-            orig_val, acc + 1, (remaining - 1) as nat);
-    }
-}
-
-// ============================================================
-// Embedded machine simulation
-// ============================================================
-
-pub open spec fn embed_configs_agree(
-    rm_sub: RegisterMachine,
-    reg_offset: nat,
-    pc_offset: nat,
-    scratch: nat,
-    c_sub: Configuration,
-    c: Configuration,
-) -> bool {
-    c.pc == c_sub.pc + pc_offset &&
-    c_sub.registers.len() == rm_sub.num_regs &&
-    (forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
-        c.registers[(r + reg_offset) as int] == c_sub.registers[r]) &&
-    c.registers[scratch as int] == 0
-}
-
-proof fn lemma_embed_step_sim(
-    rm_sub: RegisterMachine,
-    m: RegisterMachine,
-    reg_offset: nat,
-    pc_offset: nat,
-    halt_target: nat,
-    scratch: nat,
-    c_sub: Configuration,
-    c: Configuration,
-)
-    requires
-        machine_wf(rm_sub),
-        config_wf(rm_sub, c_sub),
-        !is_halted(rm_sub, c_sub),
-        embed_configs_agree(rm_sub, reg_offset, pc_offset, scratch, c_sub, c),
-        c.registers.len() == m.num_regs,
-        forall|i: int| 0 <= i < rm_sub.instructions.len() ==>
-            m.instructions[(i + pc_offset) as int] ==
-                embed_instructions(rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch)[i],
-        reg_offset + rm_sub.num_regs <= m.num_regs,
-        scratch < m.num_regs,
-        scratch < reg_offset || scratch >= reg_offset + rm_sub.num_regs,
-        pc_offset + rm_sub.instructions.len() <= m.instructions.len(),
-    ensures
-        step(rm_sub, c_sub) is Some,
-        step(m, c) is Some,
-        embed_configs_agree(
-            rm_sub, reg_offset, pc_offset, scratch,
-            step(rm_sub, c_sub).unwrap(),
-            step(m, c).unwrap(),
-        ),
-        step(m, c).unwrap().registers.len() == m.num_regs,
-        config_wf(rm_sub, step(rm_sub, c_sub).unwrap()),
-{
-    reveal(machine_wf);
-    let pc = c_sub.pc;
-    let instr = rm_sub.instructions[pc as int];
-    let m_instr = m.instructions[c.pc as int];
-    assert(m_instr == embed_instructions(
-        rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch)[pc as int]);
-    let s_sub = step(rm_sub, c_sub).unwrap();
-    let s_m = step(m, c).unwrap();
-    match instr {
-        Instruction::Inc { register: r } => {
-            assert(m_instr == mk_inc(r + reg_offset));
-            assert forall|j: int| 0 <= j < rm_sub.num_regs as int implies
-                s_m.registers[(j + reg_offset) as int] == s_sub.registers[j]
-            by {
-                if j == r as int {
-                    assert(c.registers[(j + reg_offset) as int] == c_sub.registers[j]);
-                }
-            };
-            assert(s_m.registers[scratch as int] == 0) by {
-                assert((r + reg_offset) != scratch);
-            };
-        },
-        Instruction::DecJump { register: r, target: t } => {
-            assert(m_instr == mk_dj(r + reg_offset, t + pc_offset));
-            assert(c.registers[(r + reg_offset) as int] == c_sub.registers[r as int]);
-            assert forall|j: int| 0 <= j < rm_sub.num_regs as int implies
-                s_m.registers[(j + reg_offset) as int] == s_sub.registers[j]
-            by {
-                if c_sub.registers[r as int] > 0 && j == r as int {
-                    assert(c.registers[(j + reg_offset) as int] == c_sub.registers[j]);
-                }
-            };
-            assert(s_m.registers[scratch as int] == 0) by {
-                if c_sub.registers[r as int] > 0 { assert((r + reg_offset) != scratch); }
-            };
-        },
-        Instruction::Halt => { assert(false); },
-    }
-}
-
-proof fn lemma_embed_reaches_target(
-    rm_sub: RegisterMachine,
-    m: RegisterMachine,
-    reg_offset: nat,
-    pc_offset: nat,
-    halt_target: nat,
-    scratch: nat,
-    c_sub: Configuration,
-    c: Configuration,
-    fuel: nat,
-)
-    requires
-        machine_wf(rm_sub),
-        config_wf(rm_sub, c_sub),
-        embed_configs_agree(rm_sub, reg_offset, pc_offset, scratch, c_sub, c),
-        c.registers.len() == m.num_regs,
-        run_halts(rm_sub, c_sub, fuel),
-        forall|i: int| 0 <= i < rm_sub.instructions.len() ==>
-            m.instructions[(i + pc_offset) as int] ==
-                embed_instructions(rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch)[i],
-        reg_offset + rm_sub.num_regs <= m.num_regs,
-        scratch < m.num_regs,
-        scratch < reg_offset || scratch >= reg_offset + rm_sub.num_regs,
-        pc_offset + rm_sub.instructions.len() <= m.instructions.len(),
-        halt_target <= m.instructions.len(),
-        halt_target == pc_offset + rm_sub.instructions.len(),
-    ensures ({
-        let c_sub_halt = run(rm_sub, c_sub, fuel);
-        exists|g: nat| g <= fuel + 1 &&
-            run(m, c, g).pc == halt_target &&
-            (forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
-                run(m, c, g).registers[(r + reg_offset) as int] == c_sub_halt.registers[r]) &&
-            run(m, c, g).registers[scratch as int] == 0 &&
-            run(m, c, g).registers.len() == m.num_regs
-    }),
-    decreases fuel,
-{
-    reveal(machine_wf);
-    let n = rm_sub.instructions.len();
-    if is_halted(rm_sub, c_sub) {
-        lemma_halted_run_identity(rm_sub, c_sub, fuel);
-        if c_sub.pc >= n {
-            assert(c_sub.pc == n);
-            assert(c.pc == halt_target);
-        } else {
-            assert(rm_sub.instructions[c_sub.pc as int] is Halt);
-            let embedded = embed_instructions(
-                rm_sub.instructions, reg_offset, pc_offset, halt_target, scratch);
-            assert(m.instructions[c.pc as int] == embedded[c_sub.pc as int]);
-            assert(m.instructions[c.pc as int] == mk_dj(scratch, halt_target));
-            let next = step(m, c).unwrap();
-            assert(next.pc == halt_target);
-            assert(next.registers == c.registers);
-        }
-    } else {
-        assert(fuel > 0);
-        lemma_embed_step_sim(rm_sub, m, reg_offset, pc_offset, halt_target, scratch, c_sub, c);
-        let s_sub = step(rm_sub, c_sub).unwrap();
-        let s_m = step(m, c).unwrap();
-        lemma_embed_reaches_target(rm_sub, m, reg_offset, pc_offset, halt_target, scratch,
-            s_sub, s_m, (fuel - 1) as nat);
-        let c_sub_halt = run(rm_sub, s_sub, (fuel - 1) as nat);
-        let g_inner: nat = choose|g: nat| g <= fuel &&
-            run(m, s_m, g).pc == halt_target &&
-            (forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
-                run(m, s_m, g).registers[(r + reg_offset) as int] == c_sub_halt.registers[r]) &&
-            run(m, s_m, g).registers[scratch as int] == 0 &&
-            run(m, s_m, g).registers.len() == m.num_regs;
-        assert(run(m, c, g_inner + 1) == run(m, s_m, g_inner));
-        assert(run(rm_sub, c_sub, fuel) == c_sub_halt);
     }
 }
 
@@ -463,6 +116,312 @@ proof fn lemma_build_multi_output_wf(
 }
 
 // ============================================================
+// Per-input proof: chain all phases
+// ============================================================
+
+#[verifier::rlimit(40)]
+proof fn lemma_multi_output_for_input(
+    rm_h: RegisterMachine,
+    rm_1: RegisterMachine,
+    rm_2: RegisterMachine,
+    f_h: spec_fn(nat) -> nat,
+    f_1: spec_fn(nat) -> nat,
+    f_2: spec_fn(nat) -> nat,
+    s: nat,
+)
+    requires
+        machine_wf(rm_h) &&
+        (forall|s: nat| halts(rm_h, s)) &&
+        (forall|s: nat| output(rm_h, s) == f_h(s)),
+        machine_wf(rm_1) &&
+        (forall|s: nat| halts(rm_1, s)) &&
+        (forall|s: nat| output(rm_1, s) == f_1(s)),
+        machine_wf(rm_2) &&
+        (forall|s: nat| halts(rm_2, s)) &&
+        (forall|s: nat| output(rm_2, s) == f_2(s)),
+    ensures ({
+        let m = build_multi_output(rm_h, rm_1, rm_2);
+        let init = initial_config(m, s);
+        exists|total_fuel: nat|
+            run_halts(m, init, total_fuel) &&
+            run(m, init, total_fuel).registers[0] == f_h(s) &&
+            run(m, init, total_fuel).registers[1] == f_1(s) &&
+            run(m, init, total_fuel).registers[2] == f_2(s)
+    }),
+{
+    reveal(machine_wf);
+    let m = build_multi_output(rm_h, rm_1, rm_2);
+    let init = initial_config(m, s);
+    let bh: nat = 4;
+    let b1: nat = 4 + rm_h.num_regs;
+    let b2: nat = 4 + rm_h.num_regs + rm_1.num_regs;
+    let scratch: nat = 3;
+    let n_h = rm_h.instructions.len();
+    let n_1 = rm_1.instructions.len();
+    let n_2 = rm_2.instructions.len();
+    let p1: nat = 5;
+    let p2: nat = 5 + n_h;
+    let p3: nat = 8 + n_h;
+    let p4: nat = 8 + n_h + n_1;
+    let p5: nat = 11 + n_h + n_1;
+    let p6: nat = 11 + n_h + n_1 + n_2;
+    let p7: nat = 14 + n_h + n_1 + n_2;
+
+    // ========================================
+    // Phase 0: triple distribute (fuel: 5*s + 1)
+    // ========================================
+    assert(m.instructions[0] == mk_dj(0, 5));
+    assert(m.instructions[1] == mk_inc(bh));
+    assert(m.instructions[2] == mk_inc(b1));
+    assert(m.instructions[3] == mk_inc(b2));
+    assert(m.instructions[4] == mk_dj(scratch, 0));
+    lemma_triple_dist_inner(m, init, 0, bh, b1, b2, scratch, 0, s, 0, s);
+    let f0: nat = 5 * s + 1;
+    let c0 = run(m, init, f0);
+    assert(c0.pc == p1);
+    assert(c0.registers[bh as int] == s);
+    assert(c0.registers[scratch as int] == 0);
+
+    // ========================================
+    // Phase 1: embedded rm_halts (fuel: g1 from embed_reaches_target)
+    // ========================================
+    let init_h = initial_config(rm_h, s);
+    assert(init_h.registers.len() == rm_h.num_regs);
+    assert forall|r: int| 0 <= r < rm_h.num_regs as int implies
+        c0.registers[(r + bh) as int] == init_h.registers[r]
+    by {
+        if r == 0 {
+            assert(c0.registers[bh as int] == s);
+            assert(init_h.registers[0] == s);
+        } else {
+            let idx = (r + bh) as int;
+            assert(idx != 0 as int);
+            assert(idx != bh as int);
+            assert(idx < b1 as int);
+            assert(idx != b1 as int);
+            assert(idx != b2 as int);
+            // triple_dist guarantees unchanged for this idx
+            assert(c0.registers[idx] == init.registers[idx]);
+            // init has 0 at all positions > 0
+            assert(init.registers[idx] == 0);
+            // init_h has 0 at all positions > 0
+            assert(init_h.registers[r] == 0);
+        }
+    };
+    assert(c0.registers[scratch as int] == 0);
+    assert(embed_configs_agree(rm_h, bh, p1, scratch, init_h, c0));
+
+    // Instruction matching for embedded rm_h
+    assert forall|i: int| 0 <= i < n_h as int implies
+        m.instructions[(i + p1) as int] ==
+            embed_instructions(rm_h.instructions, bh, p1, p2, scratch)[i]
+    by {};
+
+    // rm_h halts on s
+    let fuel_h: nat = choose|f: nat| run_halts(rm_h, init_h, f);
+    lemma_embed_reaches_target(rm_h, m, bh, p1, p2, scratch, init_h, c0, fuel_h);
+
+    let halt_h = run(rm_h, init_h, fuel_h);
+    let g1: nat = choose|g: nat| g <= fuel_h + 1 &&
+        run(m, c0, g).pc == p2 &&
+        (forall|r: int| 0 <= r < rm_h.num_regs as int ==>
+            run(m, c0, g).registers[(r + bh) as int] == halt_h.registers[r]) &&
+        run(m, c0, g).registers[scratch as int] == 0 &&
+        run(m, c0, g).registers.len() == m.num_regs;
+    let c1 = run(m, c0, g1);
+    assert(c1.pc == p2);
+    // c1.registers[bh] == halt_h.registers[0] == output(rm_h, s) == f_h(s)
+    assert(c1.registers[bh as int] == f_h(s));
+
+    // ========================================
+    // Phase 2: copy bank_h[0] → reg 0 (fuel: 3*f_h(s) + 1)
+    // ========================================
+    assert(m.instructions[p2 as int] == mk_dj(bh, p2 + 3));
+    assert(m.instructions[(p2 + 1) as int] == mk_inc(0));
+    assert(m.instructions[(p2 + 2) as int] == mk_dj(scratch, p2));
+    assert(c1.registers[0] == 0) by {
+        // reg 0 was zeroed by Phase 0, not touched by Phase 1 (Phase 1 only touches bh..bh+N_h)
+        // Phase 0 zeroed reg 0, Phase 1 operates at reg_offset = bh = 4, so reg 0 untouched
+    };
+    lemma_copy_loop_inner(m, c1, bh, 0, scratch, p2, f_h(s), 0, f_h(s));
+    let f2: nat = 3 * f_h(s) + 1;
+    let c2 = run(m, c1, f2);
+    assert(c2.pc == p3);
+    assert(c2.registers[0] == f_h(s));
+
+    // ========================================
+    // Phase 3: embedded rm_out1
+    // ========================================
+    let init_1 = initial_config(rm_1, s);
+    assert forall|r: int| 0 <= r < rm_1.num_regs as int implies
+        c2.registers[(r + b1) as int] == init_1.registers[r]
+    by {};
+    assert(embed_configs_agree(rm_1, b1, p3, scratch, init_1, c2));
+    assert forall|i: int| 0 <= i < n_1 as int implies
+        m.instructions[(i + p3) as int] ==
+            embed_instructions(rm_1.instructions, b1, p3, p4, scratch)[i]
+    by {};
+    let fuel_1: nat = choose|f: nat| run_halts(rm_1, init_1, f);
+    lemma_embed_reaches_target(rm_1, m, b1, p3, p4, scratch, init_1, c2, fuel_1);
+    let halt_1 = run(rm_1, init_1, fuel_1);
+    let g3: nat = choose|g: nat| g <= fuel_1 + 1 &&
+        run(m, c2, g).pc == p4 &&
+        (forall|r: int| 0 <= r < rm_1.num_regs as int ==>
+            run(m, c2, g).registers[(r + b1) as int] == halt_1.registers[r]) &&
+        run(m, c2, g).registers[scratch as int] == 0 &&
+        run(m, c2, g).registers.len() == m.num_regs;
+    let c3 = run(m, c2, g3);
+    assert(c3.registers[b1 as int] == f_1(s));
+    assert(c3.registers[0] == f_h(s)); // preserved from Phase 2
+
+    // ========================================
+    // Phase 4: copy bank_1[0] → reg 1
+    // ========================================
+    assert(m.instructions[p4 as int] == mk_dj(b1, p4 + 3));
+    assert(m.instructions[(p4 + 1) as int] == mk_inc(1));
+    assert(m.instructions[(p4 + 2) as int] == mk_dj(scratch, p4));
+    lemma_copy_loop_inner(m, c3, b1, 1, scratch, p4, f_1(s), 0, f_1(s));
+    let f4: nat = 3 * f_1(s) + 1;
+    let c4 = run(m, c3, f4);
+    assert(c4.registers[1] == f_1(s));
+    assert(c4.registers[0] == f_h(s)); // preserved
+
+    // ========================================
+    // Phase 5: embedded rm_out2
+    // ========================================
+    let init_2 = initial_config(rm_2, s);
+    assert forall|r: int| 0 <= r < rm_2.num_regs as int implies
+        c4.registers[(r + b2) as int] == init_2.registers[r]
+    by {};
+    assert(embed_configs_agree(rm_2, b2, p5, scratch, init_2, c4));
+    assert forall|i: int| 0 <= i < n_2 as int implies
+        m.instructions[(i + p5) as int] ==
+            embed_instructions(rm_2.instructions, b2, p5, p6, scratch)[i]
+    by {};
+    let fuel_2: nat = choose|f: nat| run_halts(rm_2, init_2, f);
+    lemma_embed_reaches_target(rm_2, m, b2, p5, p6, scratch, init_2, c4, fuel_2);
+    let halt_2 = run(rm_2, init_2, fuel_2);
+    let g5: nat = choose|g: nat| g <= fuel_2 + 1 &&
+        run(m, c4, g).pc == p6 &&
+        (forall|r: int| 0 <= r < rm_2.num_regs as int ==>
+            run(m, c4, g).registers[(r + b2) as int] == halt_2.registers[r]) &&
+        run(m, c4, g).registers[scratch as int] == 0 &&
+        run(m, c4, g).registers.len() == m.num_regs;
+    let c5 = run(m, c4, g5);
+    assert(c5.registers[b2 as int] == f_2(s));
+    assert(c5.registers[0] == f_h(s)); // preserved
+    assert(c5.registers[1] == f_1(s)); // preserved
+
+    // ========================================
+    // Phase 6: copy bank_2[0] → reg 2
+    // ========================================
+    assert(m.instructions[p6 as int] == mk_dj(b2, p6 + 3));
+    assert(m.instructions[(p6 + 1) as int] == mk_inc(2));
+    assert(m.instructions[(p6 + 2) as int] == mk_dj(scratch, p6));
+    lemma_copy_loop_inner(m, c5, b2, 2, scratch, p6, f_2(s), 0, f_2(s));
+    let f6: nat = 3 * f_2(s) + 1;
+    let c6 = run(m, c5, f6);
+    assert(c6.registers[2] == f_2(s));
+    assert(c6.registers[0] == f_h(s)); // preserved
+    assert(c6.registers[1] == f_1(s)); // preserved
+
+    // ========================================
+    // Phase 7: Halt — one more step
+    // ========================================
+    assert(c6.pc == p7);
+    assert(m.instructions[p7 as int] is Halt);
+    assert(is_halted(m, c6));
+    // run_halts(m, c6, 0)
+    assert(run_halts(m, c6, 0));
+    assert(run(m, c6, 0) == c6);
+
+    // ========================================
+    // Fuel composition: chain all phases from init to c6
+    // ========================================
+    assert(!is_halted(m, c0));
+    lemma_not_halted_means_not_run_halts(m, init, f0);
+    assert(!is_halted(m, c1)); // c1.pc == p2, instruction is copy (DecJump)
+    assert(!is_halted(m, c2)); // c2.pc == p3, instruction is embedded
+    assert(!is_halted(m, c3)); // c3.pc == p4, instruction is copy
+    assert(!is_halted(m, c4)); // c4.pc == p5, instruction is embedded
+    assert(!is_halted(m, c5)); // c5.pc == p6, instruction is copy
+
+    assert(run_halts(m, c5, f6));
+
+    // Phase 5→6: run_halts(m, c5, f6) — established above.
+    // Phase 4→5→6:
+    if g5 > 0 {
+        lemma_not_halted_means_not_run_halts(m, c4, (g5 - 1) as nat);
+        lemma_run_halts_split(m, c4, (g5 - 1) as nat, f6);
+    }
+    let f56: nat = g5 + f6;
+    assert(run_halts(m, c4, f56));
+
+    // Phase 3→4→5→6:
+    if f4 > 0 {
+        lemma_not_halted_means_not_run_halts(m, c3, (f4 - 1) as nat);
+        lemma_run_halts_split(m, c3, (f4 - 1) as nat, f56);
+    }
+    let f46: nat = f4 + f56;
+    assert(run_halts(m, c3, f46));
+
+    // Phase 2→3→4→5→6:
+    if g3 > 0 {
+        lemma_not_halted_means_not_run_halts(m, c2, (g3 - 1) as nat);
+        lemma_run_halts_split(m, c2, (g3 - 1) as nat, f46);
+    }
+    let f36: nat = g3 + f46;
+    assert(run_halts(m, c2, f36));
+
+    // Phase 1→2→...→6:
+    if f2 > 0 {
+        lemma_not_halted_means_not_run_halts(m, c1, (f2 - 1) as nat);
+        lemma_run_halts_split(m, c1, (f2 - 1) as nat, f36);
+    }
+    let f26: nat = f2 + f36;
+    assert(run_halts(m, c1, f26));
+
+    // Phase 0→1→...→6:
+    if g1 > 0 {
+        lemma_not_halted_means_not_run_halts(m, c0, (g1 - 1) as nat);
+        lemma_run_halts_split(m, c0, (g1 - 1) as nat, f26);
+    }
+    let f16: nat = g1 + f26;
+    assert(run_halts(m, c0, f16));
+
+    // init→0→1→...→6:
+    lemma_not_halted_means_not_run_halts(m, init, (f0 - 1) as nat);
+    lemma_run_halts_split(m, init, (f0 - 1) as nat, f16);
+    let total: nat = f0 + f16;
+    assert(run_halts(m, init, total));
+
+    // Register correctness: run(m, init, total) == c6 (by determinism + all the runs)
+    // Use lemma_run_split to compose: run(m, init, total) goes through the phases
+    lemma_run_split(m, init, (f0 - 1) as nat, f16);
+    // run(m, init, f0 + f16) == run(m, run(m, init, f0), f16) == run(m, c0, f16)
+    if g1 > 0 {
+        lemma_run_split(m, c0, (g1 - 1) as nat, f26);
+    }
+    if f2 > 0 {
+        lemma_run_split(m, c1, (f2 - 1) as nat, f36);
+    }
+    if g3 > 0 {
+        lemma_run_split(m, c2, (g3 - 1) as nat, f46);
+    }
+    if f4 > 0 {
+        lemma_run_split(m, c3, (f4 - 1) as nat, f56);
+    }
+    if g5 > 0 {
+        lemma_run_split(m, c4, (g5 - 1) as nat, f6);
+    }
+    // Now: run(m, init, total) should equal c6
+    lemma_halted_run_identity(m, c6, 0);
+    assert(run(m, init, total).registers[0] == f_h(s));
+    assert(run(m, init, total).registers[1] == f_1(s));
+    assert(run(m, init, total).registers[2] == f_2(s));
+}
+
+// ============================================================
 // Main proof
 // ============================================================
 
@@ -515,25 +474,8 @@ pub proof fn lemma_total_multi_output_machine(
 
     // Prove halts and register correctness for each input
     assert forall|s: nat| halts(m, s) by {
-        let init = initial_config(m, s);
-
-        // Phase 0: triple distribute input to banks
-        // Instructions at 0..5 are the triple distribute
-        assert(m.instructions[0] == mk_dj(0, 5));
-        assert(m.instructions[1] == mk_inc(bh));
-        assert(m.instructions[2] == mk_inc(b1));
-        assert(m.instructions[3] == mk_inc(b2));
-        assert(m.instructions[4] == mk_dj(scratch, 0));
-        lemma_triple_dist_inner(m, init, 0, bh, b1, b2, scratch,
-            0, s, 0, s);
-        let c0 = run(m, init, 5 * s + 1);
-        // c0.pc == 5 = p1, banks have input s, reg0 = 0, scratch = 0
-
-        // Phase 1: embedded rm_halts
-        assert(c0.pc == p1);
-        // TODO: establish embed_configs_agree, call lemma_embed_reaches_target
-        // Phase 2-7: remaining phases
-        assume(false); // placeholder for remaining composition
+        lemma_multi_output_for_input(
+            rm_halts, rm_out1, rm_out2, f_h, f_1, f_2, s);
     };
 
     assert forall|s: nat, fuel: nat|
@@ -543,7 +485,15 @@ pub proof fn lemma_total_multi_output_machine(
         run(m, initial_config(m, s), fuel).registers[1] == f_1(s) &&
         run(m, initial_config(m, s), fuel).registers[2] == f_2(s)
     ) by {
-        assume(false); // placeholder
+        lemma_multi_output_for_input(
+            rm_halts, rm_out1, rm_out2, f_h, f_1, f_2, s);
+        // halts gives a specific fuel with the right registers
+        // by determinism, any halting fuel gives the same result
+        let specific_fuel: nat = choose|f: nat| run_halts(m, initial_config(m, s), f) &&
+            run(m, initial_config(m, s), f).registers[0] == f_h(s) &&
+            run(m, initial_config(m, s), f).registers[1] == f_1(s) &&
+            run(m, initial_config(m, s), f).registers[2] == f_2(s);
+        lemma_run_deterministic(m, initial_config(m, s), fuel, specific_fuel);
     };
 }
 
