@@ -432,10 +432,44 @@ pub open spec fn check_logic_axiom() -> CompSpec {
     )))))))
 }
 
+/// CompSpec: compute encode(subst(decode(f_enc), var, t)) at encoding level.
+/// Input: pair(f_enc, pair(var, t_enc))
+/// Recursively walks the formula encoding, replacing Var(var) with t_enc.
+/// Uses BoundedRec with f_enc as fuel (sub-formulas have smaller encodings).
+pub open spec fn subst_enc_comp() -> CompSpec {
+    // Input: pair(f_enc, pair(var, t_enc))
+    // tag = fst(f_enc) = fst(fst(input))
+    // content = snd(f_enc) = snd(fst(input))
+    // var = fst(snd(input))
+    // t_enc = snd(snd(input))
+    //
+    // Dispatch on tag:
+    // 0 (Eq), 1 (In): pair(tag, pair(subst_term(left), subst_term(right)))
+    //   where subst_term(Var(i)) = if i==var then t_enc else Var(i) = i
+    // 2 (Not): pair(2, subst(sub, var, t))
+    // 3-6 (And/Or/Implies/Iff): pair(tag, pair(subst(left, var, t), subst(right, var, t)))
+    // 7 (Forall): if v==var then f_enc else pair(7, pair(v, subst(sub, var, t)))
+    // 8 (Exists): same as Forall
+
+    // This is a recursive computation. In CompSpec, recursion = BoundedRec.
+    // But the recursion is on the formula structure, not a simple counter.
+    // BoundedRec iterates a fixed number of times with an accumulator.
+    //
+    // Alternative: since CompSpec has no direct recursion, and BoundedRec
+    // doesn't naturally express tree recursion, this is very hard to encode.
+    //
+    // For now: placeholder. The substitution check is the hardest part.
+    cs_fst(CompSpec::Id)  // placeholder: returns f_enc unchanged
+}
+
 /// Check Assumption justification: formula is a ZFC axiom.
 /// Input: formula_enc
+/// Checks if the formula matches one of the 7 fixed ZFC axioms or
+/// is a Replacement axiom instance.
 pub open spec fn check_zfc_axiom() -> CompSpec {
-    cs_const(1)  // placeholder
+    // The 7 fixed axioms have specific encodings that could be compared directly.
+    // For now: placeholder.
+    cs_const(1)
 }
 
 /// Check one proof line's validity.
