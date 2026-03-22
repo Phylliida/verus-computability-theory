@@ -299,7 +299,15 @@ pub proof fn lemma_reaches_n(
             let next = step(rm2, c2).unwrap();
             assert(next.pc == n);
             assert(next.registers == c2.registers);
-            // run(rm2, c2, 1): step is Some(next), run(next, 0) = next (by def)
+            // Explicitly unfold: run(rm2, c2, 1) == next
+            assert(step(rm2, c2) == Some(next));
+            assert(run(rm2, next, 0) == next);
+            assert(run(rm2, c2, 1) == next);
+            // registers of run(rm2, c2, 1) match c1's
+            assert forall|i: int| 0 <= i < rm.num_regs as int implies
+                run(rm2, c2, 1).registers[i] == run(rm, c1, f).registers[i]
+            by {};
+            assert(run(rm2, c2, 1).registers[rm.num_regs as int] == 0);
             // !run_halts(rm2, c2, 0): DecJump is not Halt
         }
     } else {
@@ -514,7 +522,13 @@ pub proof fn lemma_conditional_halt_on_reg0(
         lemma_init_configs_agree(rm_total, s);
 
         // rm_total halts on s
+        assert(halts(rm_total, s));
         let ft: nat = choose|f: nat| run_halts(rm_total, init1, f);
+        assert(run_halts(rm_total, init1, ft));
+
+        // Establish preconditions for lemma_reaches_n
+        assert(config_wf(rm_total, init1));
+        assert(cond_configs_agree(rm_total.num_regs, init1, init2));
 
         // rm2 reaches pc = n with matching registers
         lemma_reaches_n(rm_total, init1, init2, ft);
@@ -585,7 +599,11 @@ pub proof fn lemma_conditional_halt_on_reg0(
         assert(f_h(s) != 0);
 
         // Get halting fuel and reach n
+        assert(halts(rm_total, s));
         let ft: nat = choose|f: nat| run_halts(rm_total, init1, f);
+        assert(run_halts(rm_total, init1, ft));
+        assert(config_wf(rm_total, init1));
+        assert(cond_configs_agree(rm_total.num_regs, init1, init2));
         lemma_reaches_n(rm_total, init1, init2, ft);
         let c_halt = run(rm_total, init1, ft);
         let g: nat = choose|g: nat|
