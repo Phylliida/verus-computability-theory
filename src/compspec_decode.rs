@@ -82,7 +82,7 @@ pub open spec fn output2_comp_term() -> CompSpec {
 }
 
 // ============================================================
-// Correctness: scanning finds the last element
+// Correctness: scan step evaluates correctly
 // ============================================================
 
 /// The scan step advances through the sequence or stays at last element.
@@ -91,11 +91,6 @@ proof fn lemma_seq_scan_step_eval(acc: nat, i: nat, input: nat)
         eval_comp(seq_scan_step(), pair(i, pair(acc, input))) ==
             if unpair2(acc) == 0 { acc } else { unpair2(acc) },
 {
-    // eval_comp(IfZero { cond, then_br, else_br }, x) =
-    //   if eval_comp(cond, x) == 0 { eval_comp(then_br, x) } else { eval_comp(else_br, x) }
-    // cond = CantorSnd(br_acc()) evaluates to unpair2(acc)
-    // then_br = br_acc() evaluates to acc
-    // else_br = CantorSnd(br_acc()) evaluates to unpair2(acc)
     let x = pair(i, pair(acc, input));
     assert(eval_comp(br_acc(), x) == acc) by {
         lemma_unpair1_pair(acc, input);
@@ -103,76 +98,8 @@ proof fn lemma_seq_scan_step_eval(acc: nat, i: nat, input: nat)
     };
 }
 
-/// After scanning, the accumulator reaches the last pair of the sequence.
-/// For a non-empty encoded sequence, the result is pair(last_elem + 1, 0).
-proof fn lemma_scan_seq(seq_enc: nat, fuel: nat)
-    requires
-        seq_enc != 0,  // non-empty sequence
-        fuel >= seq_enc,
-    ensures ({
-        let result = iterate(
-            |x: nat| eval_comp(seq_scan_step(), x),
-            fuel, seq_enc, seq_enc);
-        unpair2(result) == 0 && unpair1(result) > 0
-    }),
-    decreases fuel,
-{
-    // If unpair2(seq_enc) == 0: we're already at the last element.
-    // iterate with any fuel >= 0 keeps it there.
-    // If unpair2(seq_enc) != 0: one step advances to unpair2(seq_enc).
-    // By lemma_pair_pos_tag_gt_content, unpair2(seq_enc) < seq_enc.
-    // Recurse with fuel - 1 and the advanced position.
-    let step_fn = |x: nat| eval_comp(seq_scan_step(), x);
-
-    if fuel == 0 {
-        // iterate(f, 0, acc, input) = acc = seq_enc
-        // seq_enc != 0, so it's pair(a, b) for some a, b.
-        // We need unpair2(seq_enc) == 0... but that's not guaranteed for fuel == 0.
-        // Actually fuel >= seq_enc and seq_enc != 0 implies fuel >= 1.
-        assert(false); // unreachable: fuel >= seq_enc >= 1
-    } else {
-        if unpair2(seq_enc) == 0 {
-            // Already at last element. iterate keeps it there.
-            // step_fn(pair(fuel-1, pair(seq_enc, seq_enc))) = seq_enc (since unpair2(seq_enc) == 0)
-            lemma_seq_scan_step_eval(seq_enc, (fuel - 1) as nat, seq_enc);
-            // After one iteration: acc is still seq_enc.
-            // Need: iterate(step_fn, fuel-1, seq_enc, seq_enc) has the same properties.
-            // By induction (or just observe that once at last element, it stays):
-            lemma_scan_seq_at_last(seq_enc, (fuel - 1) as nat, seq_enc);
-        } else {
-            // Advance to tail = unpair2(seq_enc)
-            let tail = unpair2(seq_enc);
-            lemma_seq_scan_step_eval(seq_enc, (fuel - 1) as nat, seq_enc);
-            // After one step: acc becomes tail
-            // iterate(step_fn, fuel, seq_enc, seq_enc)
-            // = iterate(step_fn, fuel-1, step_fn(pair(fuel-1, pair(seq_enc, seq_enc))), seq_enc)
-            // = iterate(step_fn, fuel-1, tail, seq_enc)
-
-            if tail == 0 {
-                // The sequence had exactly one element (well, unpair2 being non-zero
-                // means there IS a tail, but tail could be 0 meaning the tail is empty).
-                // Wait, unpair2(seq_enc) != 0 was our assumption, so tail != 0.
-                assert(false); // unreachable
-            } else {
-                // tail is a non-empty sub-sequence, and tail < seq_enc
-                // (since seq_enc = pair(unpair1(seq_enc), tail) and unpair1(seq_enc) >= 1
-                //  because seq_enc encodes a non-empty sequence)
-                // Actually we need: fuel - 1 >= tail.
-                // Since tail = unpair2(seq_enc) < seq_enc (when unpair1 >= 1)
-                // and fuel >= seq_enc, we have fuel - 1 >= seq_enc - 1 >= tail.
-                // But is unpair1(seq_enc) >= 1? For a valid encoded sequence,
-                // seq_enc = pair(elem + 1, rest), so unpair1(seq_enc) = elem + 1 >= 1.
-                // We need this as a precondition or derive it.
-                // For now, assume it holds for valid proof codes.
-                assume(fuel - 1 >= tail); // TODO: prove from pair properties
-                lemma_scan_seq(tail, (fuel - 1) as nat);
-            }
-        }
-    }
-}
-
-/// Helper: once at the last element, scanning stays there.
-proof fn lemma_scan_seq_at_last(acc: nat, fuel: nat, input: nat)
+/// Once at a position with unpair2 == 0, scanning stays there.
+proof fn lemma_scan_stays_at_last(acc: nat, fuel: nat, input: nat)
     requires
         unpair2(acc) == 0,
     ensures
@@ -186,7 +113,125 @@ proof fn lemma_scan_seq_at_last(acc: nat, fuel: nat, input: nat)
         let step_fn = |x: nat| eval_comp(seq_scan_step(), x);
         lemma_seq_scan_step_eval(acc, (fuel - 1) as nat, input);
         assert(step_fn(pair((fuel - 1) as nat, pair(acc, input))) == acc);
-        lemma_scan_seq_at_last(acc, (fuel - 1) as nat, input);
+        lemma_scan_stays_at_last(acc, (fuel - 1) as nat, input);
+    }
+}
+
+// ============================================================
+// Helper: iterate is input-independent for our scan step
+// ============================================================
+
+/// Our scan step only depends on acc, not on the original input.
+/// So iterate produces the same result regardless of the input parameter.
+proof fn lemma_iterate_input_independent(fuel: nat, acc: nat, input1: nat, input2: nat)
+    ensures
+        iterate(
+            |x: nat| eval_comp(seq_scan_step(), x), fuel, acc, input1)
+        == iterate(
+            |x: nat| eval_comp(seq_scan_step(), x), fuel, acc, input2),
+    decreases fuel,
+{
+    if fuel == 0 {
+    } else {
+        let step_fn = |x: nat| eval_comp(seq_scan_step(), x);
+        lemma_seq_scan_step_eval(acc, (fuel - 1) as nat, input1);
+        lemma_seq_scan_step_eval(acc, (fuel - 1) as nat, input2);
+        let next_acc = if unpair2(acc) == 0 { acc } else { unpair2(acc) };
+        lemma_iterate_input_independent(
+            (fuel - 1) as nat, next_acc, input1, input2);
+    }
+}
+
+/// Extra fuel beyond convergence doesn't change the result.
+proof fn lemma_iterate_extra_fuel(fuel1: nat, fuel2: nat, acc: nat, input: nat)
+    requires
+        fuel2 >= fuel1,
+        unpair2(iterate(
+            |x: nat| eval_comp(seq_scan_step(), x), fuel1, acc, input)) == 0,
+    ensures
+        iterate(
+            |x: nat| eval_comp(seq_scan_step(), x), fuel2, acc, input)
+        == iterate(
+            |x: nat| eval_comp(seq_scan_step(), x), fuel1, acc, input),
+    decreases fuel2,
+{
+    let step_fn = |x: nat| eval_comp(seq_scan_step(), x);
+    if fuel2 == fuel1 {
+    } else if fuel1 == 0 {
+        // iterate at fuel1=0 returns acc, and unpair2(acc) == 0
+        // iterate at fuel2 stays at acc by lemma_scan_stays_at_last
+        lemma_scan_stays_at_last(acc, fuel2, input);
+    } else {
+        // Both take one step: same next_acc
+        lemma_seq_scan_step_eval(acc, (fuel1 - 1) as nat, input);
+        lemma_seq_scan_step_eval(acc, (fuel2 - 1) as nat, input);
+        let next_acc = if unpair2(acc) == 0 { acc } else { unpair2(acc) };
+        if unpair2(acc) == 0 {
+            // Already at last, both stay
+            lemma_scan_stays_at_last(acc, (fuel1 - 1) as nat, input);
+            lemma_scan_stays_at_last(acc, (fuel2 - 1) as nat, input);
+        } else {
+            // Both advance to next_acc = unpair2(acc)
+            lemma_iterate_extra_fuel(
+                (fuel1 - 1) as nat, (fuel2 - 1) as nat, next_acc, input);
+        }
+    }
+}
+
+// ============================================================
+// Correctness: get_last_pair on encoded sequences
+// ============================================================
+
+/// For encoded sequences, eval_comp(get_last_pair(), enc) correctly finds the last pair.
+/// Result is encode_nat_seq(seq![last_element]) = pair(last_element + 1, 0).
+proof fn lemma_get_last_pair_correct(s: Seq<nat>)
+    requires
+        s.len() > 0,
+    ensures
+        eval_comp(get_last_pair(), encode_nat_seq(s))
+            == encode_nat_seq(seq![s[s.len() - 1]]),
+    decreases s.len(),
+{
+    let enc = encode_nat_seq(s);
+    let tail_seq = s.subrange(1, s.len() as int);
+    let tail_enc = encode_nat_seq(tail_seq);
+    let step_fn = |x: nat| eval_comp(seq_scan_step(), x);
+    lemma_encode_nat_seq_structure(s);
+
+    // eval_comp(get_last_pair(), enc) = iterate(step_fn, enc, enc, enc)
+
+    if s.len() == 1 {
+        // unpair2(enc) == 0, so iterate stays at enc
+        lemma_scan_stays_at_last(enc, enc, enc);
+    } else {
+        // unpair2(enc) = tail_enc != 0, first step advances to tail_enc
+        lemma_encode_nat_seq_nonempty(tail_seq);
+        assert(tail_enc != 0);
+
+        // First step: iterate(enc, enc, enc) → iterate(enc-1, tail_enc, enc)
+        lemma_encode_nat_seq_nonempty(s);
+        lemma_seq_scan_step_eval(enc, (enc - 1) as nat, enc);
+
+        // Input independence: iterate(enc-1, tail_enc, enc) == iterate(enc-1, tail_enc, tail_enc)
+        lemma_iterate_input_independent(
+            (enc - 1) as nat, tail_enc, enc, tail_enc);
+
+        // By induction: iterate(tail_enc, tail_enc, tail_enc) == encode_nat_seq(seq![s.last()])
+        lemma_get_last_pair_correct(tail_seq);
+        assert(tail_seq[tail_seq.len() - 1] == s[s.len() - 1]);
+
+        // Fuel sufficiency: enc - 1 >= tail_enc, and tail_enc fuel is enough
+        lemma_pair_pos_tag_gt_content(s[0] + 1, tail_enc);
+        assert(enc > tail_enc);
+        // iterate(tail_enc, tail_enc, tail_enc) converges (unpair2 of result == 0)
+        let result = iterate(step_fn, tail_enc, tail_enc, tail_enc);
+        assert(result == encode_nat_seq(seq![s[s.len() - 1]]));
+        lemma_encode_nat_seq_structure(seq![s[s.len() - 1]]);
+        assert(unpair2(result) == 0);
+
+        // Extra fuel: iterate(enc-1, tail_enc, tail_enc) == iterate(tail_enc, tail_enc, tail_enc)
+        lemma_iterate_extra_fuel(
+            tail_enc, (enc - 1) as nat, tail_enc, tail_enc);
     }
 }
 
