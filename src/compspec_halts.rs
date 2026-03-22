@@ -1277,6 +1277,29 @@ pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
 
 /// Check if an encoded formula is a sentence (no free variables).
 /// Input: formula_enc
+/// The step function for check_is_sentence, extracted for use in proofs.
+/// Input: pair(i, pair(acc, f_enc))
+/// Output: acc * (if has_free_var(f_enc, i) == 0 then 1 else 0)
+///
+/// Opaque to prevent Z3 from unfolding has_free_var_comp's BoundedRec tree
+/// inside eval_comp calls, which causes rlimit explosion. Reveal only in
+/// the step evaluation lemma.
+#[verifier::opaque]
+pub open spec fn check_is_sentence_step() -> CompSpec {
+    let acc = cs_fst(cs_snd(CompSpec::Id));  // acc from step input
+    let f_enc = cs_snd(cs_snd(CompSpec::Id));  // original_input = f_enc
+    let i = cs_fst(CompSpec::Id);  // current variable index
+
+    // check = has_free_var(f_enc, i)
+    let check = cs_comp(has_free_var_comp(), CompSpec::CantorPair {
+        left: Box::new(f_enc),
+        right: Box::new(i),
+    });
+
+    // new_acc = acc * (1 if !has_free_var else 0)
+    cs_and(acc, cs_not(check))
+}
+
 /// Checks: for all v from 0 to f_enc, v is not free in f_enc.
 /// Uses BoundedRec over variable index, calling has_free_var_comp for each.
 pub open spec fn check_is_sentence() -> CompSpec {
@@ -1288,22 +1311,7 @@ pub open spec fn check_is_sentence() -> CompSpec {
     CompSpec::BoundedRec {
         count_fn: Box::new(CompSpec::Id),
         base: Box::new(cs_const(1)),
-        step: Box::new({
-            let acc = cs_fst(cs_snd(CompSpec::Id));  // acc from step input
-            let f_enc = cs_snd(cs_snd(CompSpec::Id));  // original_input = f_enc
-            let i = cs_fst(CompSpec::Id);  // current variable index
-
-            // check = has_free_var(f_enc, i)
-            let check = cs_comp(has_free_var_comp(), CompSpec::CantorPair {
-                left: Box::new(f_enc),
-                right: Box::new(i),
-            });
-
-            // new_acc = acc * (1 - min(check, 1))
-            // If check != 0: variable i is free → not sentence → return 0
-            // If check == 0: still OK → keep acc
-            cs_and(acc, cs_not(check))
-        }),
+        step: Box::new(check_is_sentence_step()),
     }
 }
 
@@ -1372,28 +1380,28 @@ pub open spec fn halts_comp_term() -> CompSpec {
 // Z3 can't automatically unfold eval_comp through nested CompSpec.
 // These helpers provide one-step unfolding rules.
 
-proof fn lemma_eval_fst(inner: CompSpec, s: nat)
+pub proof fn lemma_eval_fst(inner: CompSpec, s: nat)
     ensures eval_comp(CompSpec::CantorFst { inner: Box::new(inner) }, s)
         == unpair1(eval_comp(inner, s))
 {}
 
-proof fn lemma_eval_snd(inner: CompSpec, s: nat)
+pub proof fn lemma_eval_snd(inner: CompSpec, s: nat)
     ensures eval_comp(CompSpec::CantorSnd { inner: Box::new(inner) }, s)
         == unpair2(eval_comp(inner, s))
 {}
 
-proof fn lemma_eval_comp(outer: CompSpec, inner: CompSpec, s: nat)
+pub proof fn lemma_eval_comp(outer: CompSpec, inner: CompSpec, s: nat)
     ensures eval_comp(CompSpec::Comp { outer: Box::new(outer), inner: Box::new(inner) }, s)
         == eval_comp(outer, eval_comp(inner, s))
 {}
 
-proof fn lemma_eval_eq(l: CompSpec, r: CompSpec, s: nat)
+pub proof fn lemma_eval_eq(l: CompSpec, r: CompSpec, s: nat)
     ensures eval_comp(CompSpec::Eq { left: Box::new(l), right: Box::new(r) }, s)
         == (if eval_comp(l, s) == eval_comp(r, s) { 1nat } else { 0nat })
 {}
 
 /// Helper: eval_comp(cs_nonzero(), s) == if s == 0 { 0 } else { 1 }
-proof fn lemma_eval_cs_nonzero(s: nat)
+pub proof fn lemma_eval_cs_nonzero(s: nat)
     ensures
         eval_comp(cs_nonzero(), s) == (if s == 0 { 0nat } else { 1nat }),
 {
@@ -1409,7 +1417,7 @@ proof fn lemma_eval_cs_nonzero(s: nat)
 }
 
 /// Helper: eval_comp(cs_and(a, b), s) == eval_comp(a, s) * eval_comp(b, s)
-proof fn lemma_eval_cs_and(a: CompSpec, b: CompSpec, s: nat)
+pub proof fn lemma_eval_cs_and(a: CompSpec, b: CompSpec, s: nat)
     ensures
         eval_comp(cs_and(a, b), s) == eval_comp(a, s) * eval_comp(b, s),
 {
