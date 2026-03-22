@@ -242,7 +242,7 @@ pub proof fn lemma_get_last_pair_correct(s: Seq<nat>)
 // ============================================================
 
 /// Helper: trace eval_comp through the unpairing chain for a valid proof code.
-proof fn lemma_output_eval_chain(s: nat, p: Proof)
+pub proof fn lemma_output_eval_chain(s: nat, p: Proof)
     requires
         encode_proof(p) == s,
         p.lines.len() > 0,
