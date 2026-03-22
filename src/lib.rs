@@ -44,6 +44,9 @@ pub mod multi_output_machine;
 pub mod compspec_decode;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eval_helpers;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_halts;
 
 #[cfg(verus_keep_ghost)]
