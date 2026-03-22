@@ -1283,10 +1283,6 @@ pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
 /// Input: pair(i, pair(acc, f_enc))
 /// Output: acc * (if has_free_var(f_enc, i) == 0 then 1 else 0)
 ///
-/// Opaque to prevent Z3 from unfolding has_free_var_comp's BoundedRec tree
-/// inside eval_comp calls, which causes rlimit explosion. Reveal only in
-/// the step evaluation lemma.
-#[verifier::opaque]
 pub open spec fn check_is_sentence_step() -> CompSpec {
     let acc = cs_fst(cs_snd(CompSpec::Id));  // acc from step input
     let f_enc = cs_snd(cs_snd(CompSpec::Id));  // original_input = f_enc
@@ -1504,12 +1500,8 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     };
     // The BoundedRec iteration preserves nonzero accumulator
     lemma_check_is_sentence_iter(f_enc, f_enc, 1);
-    // check_is_sentence() = BoundedRec { Id, cs_const(1), check_is_sentence_step() }
-    // eval_comp unfolds to: iterate(|x| eval_comp(check_is_sentence_step(), x), f_enc, 1, f_enc)
-    // The iterate result is proven nonzero above.
-    // The remaining gap is connecting eval_comp(BoundedRec{...}) to the iterate call.
-    // This is the closure identity issue: Z3 can't match closures created at different
-    // program points, even when they capture the same opaque function.
+    // Closure identity gap: Z3 can't match closures across program points.
+    // TODO: fix by moving this proof to compspec_sentence_helpers.rs
     assume(eval_comp(check_is_sentence(), f_enc) != 0);
 }
 

@@ -151,7 +151,7 @@ proof fn lemma_cis_step_eq()
         step == check_is_sentence_step()
     }),
 {
-    reveal(check_is_sentence_step);
+    // check_is_sentence_step() is not opaque, so Z3 can unfold and match
 }
 
 /// Main: one step of check_is_sentence_step preserves acc when has_free_var returns 0.
@@ -163,6 +163,20 @@ pub proof fn lemma_cis_step_preserves(i: nat, acc: nat, f_enc: nat)
 {
     lemma_cis_step_eval_raw(i, acc, f_enc);
     lemma_cis_step_eq();
+}
+
+/// Test: does the closure matching work in this cleaner module?
+/// eval_comp(check_is_sentence(), f_enc) unfolds to
+///   iterate(|x| eval_comp(check_is_sentence_step(), x), f_enc, 1, f_enc)
+/// and lemma_check_is_sentence_iter proves the iterate != 0.
+proof fn test_backward_connection(f_enc: nat)
+    requires
+        forall|v: nat| v < f_enc ==>
+            eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0,
+    ensures
+        eval_comp(check_is_sentence(), f_enc) != 0,
+{
+    lemma_check_is_sentence_iter(f_enc, f_enc, 1);
 }
 
 } // verus!

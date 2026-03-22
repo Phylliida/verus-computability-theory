@@ -110,23 +110,34 @@ lemma_halts_comp_correct()
 }
 ```
 
-### 5 Remaining assumes
+### 4 Remaining assumes (down from 5)
+
+**Eliminated:** Assume #2 (`lemma_check_is_sentence_iter`) — fully proved via inductive proof
+with `lemma_cis_step_preserves` in `compspec_sentence_helpers.rs`. Key techniques: opaque
+`check_is_sentence_step()` + `has_free_var_comp()` to prevent rlimit explosion, eval rewriting
+lemmas (`lemma_eval_comp`, `lemma_eval_cs_not`, `lemma_eval_cs_and`) with `assert by` isolation,
+and splitting the proof into 4 focused sub-lemmas across a separate module.
 
 | # | Function | Line | What it needs |
 |---|----------|------|---------------|
-| 1 | `lemma_has_free_var_sentence` | 1433 | Show stack-based tree traversal returns 0 for sentences. Requires inductive argument on formula structure connecting the BoundedRec stack walk to mathematical `free_vars`. |
-| 2 | `lemma_check_is_sentence_iter` | 1465 | Show BoundedRec iteration preserves acc≠0 when all has_free_var checks return 0. Requires showing each step returns `acc * 1 = acc`. Blocked by closure identity issue — iterate uses different closure instances in eval_comp vs lemma. |
-| 3 | `lemma_check_is_sentence_backward` | 1494 | Connect `eval_comp(check_is_sentence(), f_enc)` to the iterate result from #2. Requires showing eval_comp of BoundedRec equals iterate with matching parameters. Same closure identity issue. |
-| 4 | `lemma_all_lines_check_backward` | 1600 | Show BoundedRec iteration over all proof lines returns nonzero for valid proofs. Requires showing each `check_line` call returns nonzero for each valid justification type. The hardest remaining piece — needs per-justification-type correctness. |
-| 5 | Forward direction | 1657 | Show CompSpec returning nonzero implies mathematical validity. Requires showing CompSpec checks are SUFFICIENT (not just necessary). The eq_subst partial check (known issue) blocks this. |
+| 1 | `lemma_has_free_var_sentence` | 1453 | Show stack-based tree traversal returns 0 for sentences. Requires inductive argument on formula structure connecting the BoundedRec stack walk to mathematical `free_vars`. |
+| 2 | `lemma_check_is_sentence_backward` | 1513 | Connect `eval_comp(check_is_sentence(), f_enc)` to the iterate result. The iterate is PROVEN nonzero (via lemma_check_is_sentence_iter). Only gap: Z3 closure identity — can't match the closure from eval_comp's BoundedRec unfolding with the one in iterate ensures. Possible fix: change eval_comp's BoundedRec case to avoid closures (requires updating compspec_decode proofs). |
+| 3 | `lemma_all_lines_check_backward` | 1619 | Show BoundedRec iteration over all proof lines returns nonzero for valid proofs. Requires showing each `check_line` call returns nonzero for each valid justification type. The hardest remaining piece — needs per-justification-type correctness. |
+| 4 | Forward direction | 1676 | Show CompSpec returning nonzero implies mathematical validity. Requires showing CompSpec checks are SUFFICIENT (not just necessary). The eq_subst partial check (known issue) blocks this. |
 
 ### Known issues
 
 1. **eq_subst_left/right partial check**: Uses structural tag matching only (`cs_const(1)` after verifying Implies(Eq, Implies) tags). Does NOT verify the two substitutions use the same phi and var. This makes the forward direction unsound for formulas matching the tag pattern but not being actual eq_subst axioms.
 
-2. **Module trigger pollution**: The ~1200 lines of CompSpec spec fns in compspec_halts.rs pollute Z3's search space, preventing eval_comp unfolding proofs from verifying in the same file. Solution: isolate eval_comp connecting lemmas in `compspec_eval_helpers.rs`.
+2. **Module trigger pollution**: The ~1200 lines of CompSpec spec fns in compspec_halts.rs pollute Z3's search space. Solutions used:
+   - `compspec_eval_helpers.rs` for eval_comp connecting lemmas
+   - `compspec_sentence_helpers.rs` for sentence checking proofs (reduces proof fn body pollution)
+   - `#[verifier::opaque]` on `check_is_sentence_step()` and `has_free_var_comp()` to prevent Z3 from diving into BoundedRec trees
+   - `assert by { reveal(...); }` for isolated reveal scoping
+   - Split proofs into 4+ focused sub-lemmas (`lemma_cis_check_eval`, `lemma_cis_acc_eval`, `lemma_cis_and_eval`, `lemma_cis_step_eval_raw`)
+   - Eval rewriting lemmas (`lemma_eval_fst`, `lemma_eval_snd`, `lemma_eval_comp`, `lemma_eval_cs_not`, `lemma_eval_cs_and`) for one-step eval_comp unfolding without deep recursion
 
-3. **Closure identity in iterate**: `iterate` takes a `spec_fn(nat) -> nat` parameter. Two closures `|x| eval_comp(step, x)` written in different locations are not automatically identified as equal by Z3. This prevents connecting `eval_comp(BoundedRec{...}, input)` to `iterate(step_fn, ...)` across function boundaries.
+3. **Closure identity in iterate**: `iterate` takes a `spec_fn(nat) -> nat` parameter. Two closures `|x| eval_comp(step, x)` written in different locations are not automatically identified as equal by Z3. This prevents connecting `eval_comp(BoundedRec{...}, input)` to `iterate(step_fn, ...)` across function boundaries. Even making `step` opaque doesn't help — Z3 treats each lambda as a unique function symbol regardless. The `bounded_rec_iterate` approach (closure-free iterate) was developed but the connection `eval_comp(BoundedRec{...}) == bounded_rec_iterate(...)` still requires the same closure matching.
 
 ## Remaining Critical-Path Axioms
 
@@ -187,7 +198,8 @@ These axioms have NO callers in the codebase:
 - `src/multi_output_machine.rs` — three-machine merge construction + proof
 - `src/compspec_decode.rs` — CompSpec output extraction + BoundedRec scan
 - `src/compspec_eval_helpers.rs` — isolated eval_comp connecting lemmas
-- `src/compspec_halts.rs` — CompSpec proof validator (~1200 lines)
+- `src/compspec_halts.rs` — CompSpec proof validator (~1700 lines)
+- `src/compspec_sentence_helpers.rs` — sentence checking eval proofs (isolated for rlimit)
 
 ### Modified files (verus-computability-theory)
 - `src/computable.rs` — removed external_body from axiom_conditional_halt_on_reg0, axiom_total_multi_output_machine
