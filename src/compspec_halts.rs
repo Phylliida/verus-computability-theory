@@ -1442,20 +1442,16 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
 }
 
 /// Show one step of check_is_sentence_step preserves acc when has_free_var returns 0.
+/// Uses assert-by isolation to avoid rlimit explosion from revealing check_is_sentence_step
+/// in the same scope as eval_comp unfolding.
 proof fn lemma_cis_step_preserves(i: nat, acc: nat, f_enc: nat)
     requires
         eval_comp(has_free_var_comp(), pair(f_enc, i)) == 0,
     ensures
         eval_comp(check_is_sentence_step(), pair(i, pair(acc, f_enc))) == acc,
 {
-    reveal(check_is_sentence_step);
-
     let input = pair(i, pair(acc, f_enc));
-    lemma_unpair1_pair(i, pair(acc, f_enc));
-    lemma_unpair2_pair(i, pair(acc, f_enc));
-    lemma_unpair1_pair(acc, f_enc);
-    lemma_unpair2_pair(acc, f_enc);
-
+    let acc_expr = cs_fst(cs_snd(CompSpec::Id));
     let f_enc_expr = cs_snd(cs_snd(CompSpec::Id));
     let i_expr = cs_fst(CompSpec::Id);
     let pair_expr = CompSpec::CantorPair {
@@ -1465,17 +1461,40 @@ proof fn lemma_cis_step_preserves(i: nat, acc: nat, f_enc: nat)
     let hfv = has_free_var_comp();
     let check = cs_comp(hfv, pair_expr);
     let not_check = cs_not(check);
-    let acc_expr = cs_fst(cs_snd(CompSpec::Id));
+    // step = cs_and(acc_expr, cs_not(cs_comp(hfv, pair_expr)))
+    let step = cs_and(acc_expr, not_check);
 
-    assert(eval_comp(acc_expr, input) == acc) by {
-        lemma_eval_fst(cs_snd(CompSpec::Id), input);
-        lemma_eval_snd(CompSpec::Id, input);
-    };
-    assert(eval_comp(check, input) == 0nat) by {
-        lemma_eval_comp(hfv, pair_expr, input);
-    };
+    // Prove eval_comp(step, input) == acc (WITHOUT revealing check_is_sentence_step)
+    // Step A: unpack pairs
+    lemma_unpair1_pair(i, pair(acc, f_enc));
+    lemma_unpair2_pair(i, pair(acc, f_enc));
+    lemma_unpair1_pair(acc, f_enc);
+    lemma_unpair2_pair(acc, f_enc);
+
+    // Step B: acc_expr evaluates to acc
+    lemma_eval_fst(cs_snd(CompSpec::Id), input);
+    lemma_eval_snd(CompSpec::Id, input);
+    assert(eval_comp(acc_expr, input) == acc);
+
+    // Step C: pair_expr evaluates to pair(f_enc, i)
+    assert(eval_comp(pair_expr, input) == pair(f_enc, i));
+
+    // Step D: check = cs_comp(hfv, pair_expr) evaluates to eval(hfv, pair(f_enc, i)) = 0
+    lemma_eval_comp(hfv, pair_expr, input);
+    assert(eval_comp(check, input) == eval_comp(hfv, pair(f_enc, i)));
+    assert(eval_comp(check, input) == 0nat);
+
+    // Step E: cs_not(0) = 1
     assert(eval_comp(not_check, input) == 1nat);
+
+    // Step F: cs_and(acc, 1) = acc * 1 = acc
     lemma_eval_cs_and(acc_expr, not_check, input);
+    assert(eval_comp(step, input) == acc);
+
+    // Separately: assert structural equality (isolated reveal)
+    assert(step == check_is_sentence_step()) by {
+        reveal(check_is_sentence_step);
+    };
 }
 
 /// Helper: the check_is_sentence BoundedRec iteration preserves nonzero acc
