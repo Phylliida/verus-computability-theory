@@ -1089,6 +1089,7 @@ pub open spec fn check_all_lines() -> CompSpec {
 /// Stack is encoded as a nat sequence (0=empty, pair(elem+1, rest)=non-empty).
 /// Each element is pair(sub_formula_enc, is_bound_flag) where is_bound_flag=1 if v is bound here.
 /// Returns nonzero if v is free in f_enc.
+#[verifier::opaque]
 pub open spec fn has_free_var_comp() -> CompSpec {
     // Input: pair(f_enc, v)
     // BoundedRec: count = f_enc (upper bound on tree traversal steps)
