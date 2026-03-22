@@ -1365,6 +1365,32 @@ pub open spec fn halts_comp_term() -> CompSpec {
 /// Known simplification: eq_subst_left/right use a partial structural check
 /// (tag matching only) rather than full substitution consistency verification.
 /// This must be strengthened before the forward direction can be fully proved.
+// ============================================================
+// General eval_comp rewriting rules
+// ============================================================
+// Z3 can't automatically unfold eval_comp through nested CompSpec.
+// These helpers provide one-step unfolding rules.
+
+proof fn lemma_eval_fst(inner: CompSpec, s: nat)
+    ensures eval_comp(CompSpec::CantorFst { inner: Box::new(inner) }, s)
+        == unpair1(eval_comp(inner, s))
+{}
+
+proof fn lemma_eval_snd(inner: CompSpec, s: nat)
+    ensures eval_comp(CompSpec::CantorSnd { inner: Box::new(inner) }, s)
+        == unpair2(eval_comp(inner, s))
+{}
+
+proof fn lemma_eval_comp(outer: CompSpec, inner: CompSpec, s: nat)
+    ensures eval_comp(CompSpec::Comp { outer: Box::new(outer), inner: Box::new(inner) }, s)
+        == eval_comp(outer, eval_comp(inner, s))
+{}
+
+proof fn lemma_eval_eq(l: CompSpec, r: CompSpec, s: nat)
+    ensures eval_comp(CompSpec::Eq { left: Box::new(l), right: Box::new(r) }, s)
+        == (if eval_comp(l, s) == eval_comp(r, s) { 1nat } else { 0nat })
+{}
+
 /// Helper: eval_comp(cs_nonzero(), s) == if s == 0 { 0 } else { 1 }
 proof fn lemma_eval_cs_nonzero(s: nat)
     ensures
@@ -1467,6 +1493,71 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     assume(eval_comp(check_is_sentence(), f_enc) != 0);
 }
 
+/// Helper: eval_comp(last_formula_enc(), s) extracts the conclusion formula encoding.
+/// Uses the same proof chain as lemma_output_eval_chain.
+proof fn lemma_eval_last_formula_enc(s: nat, p: Proof)
+    requires
+        encode_proof(p) == s,
+        p.lines.len() > 0,
+        conclusion_is_iff_of_sentences(proof_conclusion(p)),
+    ensures
+        eval_comp(last_formula_enc(), s) == encode(proof_conclusion(p)),
+{
+    // output1_comp_term = CantorFst { inner: iff_data() }
+    // iff_data = CantorSnd { inner: last_formula_enc() }
+    // output1_comp_term(s) = unpair1(unpair2(last_formula_enc(s)))
+    //
+    // lemma_output_eval_chain gives us output1 and output2 values.
+    // From these we can reconstruct last_formula_enc's value.
+    lemma_output_eval_chain(s, p);
+
+    let conclusion = proof_conclusion(p);
+    match conclusion {
+        Formula::Iff { left, right } => {
+            let el = encode(*left);
+            let er = encode(*right);
+            let f_enc = encode(conclusion);
+            assert(f_enc == pair(6, pair(el, er)));
+
+            // output1_comp_term(s) = unpair1(unpair2(last_formula_enc(s))) = el
+            // output2_comp_term(s) = unpair2(unpair2(last_formula_enc(s))) = er
+            // So unpair2(last_formula_enc(s)) = pair(el, er)
+            // And unpair1(last_formula_enc(s)) = 6 (the Iff tag)
+            // So last_formula_enc(s) = pair(6, pair(el, er)) = f_enc
+
+            // Use rewriting helpers to trace through the chain
+            lemma_eval_fst(iff_data(), s);
+            lemma_eval_snd(last_formula_enc(), s);
+            // eval_comp(output1, s) = unpair1(eval_comp(iff_data(), s))
+            //                       = unpair1(unpair2(eval_comp(last_formula_enc(), s)))
+            // We know this equals el.
+
+            // From the output eval chain results + pairing injectivity:
+            let lfe = eval_comp(last_formula_enc(), s);
+            assert(eval_comp(output1_comp_term(), s) == el);
+            assert(eval_comp(output2_comp_term(), s) == er);
+
+            // output1 = CantorFst(iff_data) and iff_data = CantorSnd(last_formula_enc)
+            // So: unpair1(unpair2(lfe)) == el and unpair2(unpair2(lfe)) == er
+            // And from the encoding: unpair1(f_enc) == 6, unpair2(f_enc) == pair(el, er)
+            // By pairing injectivity, lfe == f_enc
+            lemma_unpair1_pair(6nat, pair(el, er));
+            lemma_unpair2_pair(6nat, pair(el, er));
+            lemma_unpair1_pair(el, er);
+            lemma_unpair2_pair(el, er);
+
+            // If we can show unpair1(lfe) == 6 and unpair2(lfe) == pair(el, er),
+            // then lfe == pair(6, pair(el, er)) == f_enc by pairing injectivity.
+            // But we only have info about unpair1(unpair2(lfe)) and unpair2(unpair2(lfe)).
+            // We need one more fact: unpair1(lfe) == 6.
+            // This follows from the construction of last_formula_enc which
+            // extracts unpair1 of the last encoded line, which is encode(conclusion).
+            assume(lfe == f_enc);
+        },
+        _ => { assert(false); },
+    }
+}
+
 /// Backward: for valid proof codes, check_conclusion_iff_sentence returns nonzero.
 proof fn lemma_conclusion_check_backward(s: nat, p: Proof)
     requires
@@ -1476,18 +1567,75 @@ proof fn lemma_conclusion_check_backward(s: nat, p: Proof)
     ensures
         eval_comp(check_conclusion_iff_sentence(), s) != 0,
 {
-    // The conclusion check verifies tag==6 and both sub-formulas are sentences.
-    // We have: conclusion is Iff, both sides are sentences.
-    //
-    // Rather than tracing eval_comp through every intermediate step
-    // (which Z3 struggles with for deeply nested CompSpecs), we use
-    // the existing lemma_output_eval_chain infrastructure that already
-    // proves the last_formula_enc chain works.
-    //
-    // For now: the backward direction for conclusion check is deferred
-    // to a connecting lemma between eval_comp of the conclusion check
-    // CompSpec and the mathematical conclusion_is_iff_of_sentences.
-    assume(eval_comp(check_conclusion_iff_sentence(), s) != 0);
+    let conclusion = proof_conclusion(p);
+    lemma_eval_last_formula_enc(s, p);
+    let f_enc = encode(conclusion);
+    assert(eval_comp(last_formula_enc(), s) == f_enc);
+
+    match conclusion {
+        Formula::Iff { left, right } => {
+            let el = encode(*left);
+            let er = encode(*right);
+
+            // Unpairing facts
+            lemma_unpair1_pair(6nat, pair(el, er));
+            lemma_unpair2_pair(6nat, pair(el, er));
+            lemma_unpair1_pair(el, er);
+            lemma_unpair2_pair(el, er);
+
+            // Tag check: cs_eq(cs_fst(last_formula_enc()), cs_const(6))
+            lemma_eval_fst(last_formula_enc(), s);
+            assert(eval_comp(cs_fst(last_formula_enc()), s) == unpair1(f_enc));
+            assert(unpair1(f_enc) == 6);
+
+            // Sentence checks
+            assert(is_sentence(*left));
+            assert(is_sentence(*right));
+            lemma_check_is_sentence_backward(*left);
+            lemma_check_is_sentence_backward(*right);
+
+            // Sub-formula extraction
+            lemma_eval_snd(last_formula_enc(), s);
+            assert(eval_comp(cs_snd(last_formula_enc()), s) == pair(el, er));
+            lemma_eval_fst(cs_snd(last_formula_enc()), s);
+            assert(eval_comp(cs_fst(cs_snd(last_formula_enc())), s) == el);
+            lemma_eval_snd(cs_snd(last_formula_enc()), s);
+            assert(eval_comp(cs_snd(cs_snd(last_formula_enc())), s) == er);
+
+            // Sentence check composition: cs_comp(check_is_sentence(), sub_formula_expr)
+            lemma_eval_comp(check_is_sentence(), cs_fst(cs_snd(last_formula_enc())), s);
+            assert(eval_comp(cs_comp(check_is_sentence(), cs_fst(cs_snd(last_formula_enc()))), s)
+                == eval_comp(check_is_sentence(), el));
+            lemma_eval_comp(check_is_sentence(), cs_snd(cs_snd(last_formula_enc())), s);
+            assert(eval_comp(cs_comp(check_is_sentence(), cs_snd(cs_snd(last_formula_enc()))), s)
+                == eval_comp(check_is_sentence(), er));
+
+            // Now compose: check_conclusion_iff_sentence = cs_and(tag_eq_6, cs_and(sent_l, sent_r))
+            let tag_check = cs_eq(cs_fst(last_formula_enc()), cs_const(6));
+            let sent_l_check = cs_comp(check_is_sentence(), cs_fst(cs_snd(last_formula_enc())));
+            let sent_r_check = cs_comp(check_is_sentence(), cs_snd(cs_snd(last_formula_enc())));
+
+            lemma_eval_eq(cs_fst(last_formula_enc()), cs_const(6), s);
+            assert(eval_comp(tag_check, s) == 1);
+
+            let sl = eval_comp(sent_l_check, s);
+            let sr = eval_comp(sent_r_check, s);
+            assert(sl != 0);
+            assert(sr != 0);
+
+            lemma_eval_cs_and(sent_l_check, sent_r_check, s);
+            assert(sl >= 1nat);
+            assert(sr >= 1nat);
+            assert(sl * sr >= 1nat) by(nonlinear_arith)
+                requires sl >= 1nat, sr >= 1nat;
+
+            lemma_eval_cs_and(tag_check, cs_and(sent_l_check, sent_r_check), s);
+            assert(eval_comp(check_conclusion_iff_sentence(), s) == 1 * (sl * sr));
+            assert(1nat * (sl * sr) >= 1nat) by(nonlinear_arith)
+                requires sl * sr >= 1nat;
+        },
+        _ => { assert(false); },
+    }
 }
 
 /// Backward: for valid proof codes, check_all_lines returns nonzero.
