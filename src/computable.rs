@@ -78,6 +78,8 @@ pub open spec fn iterate(
 /// Like `iterate`, but takes a CompSpec step instead of a spec_fn closure.
 /// This avoids the closure identity issue where Z3 can't match two
 /// syntactically different `|x| eval_comp(step, x)` closures.
+/// Opaque to prevent trigger pollution from eval_comp calls in body.
+#[verifier::opaque]
 pub open spec fn bounded_rec_iterate(step: CompSpec, count: nat, acc: nat, input: nat) -> nat
     decreases count,
 {
@@ -130,19 +132,6 @@ pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
             let step_fn = |x: nat| eval_comp(*step, x);
             iterate(step_fn, n, b, input)
         },
-    }
-}
-
-/// Prove that iterate with a CompSpec-derived closure equals bounded_rec_iterate.
-pub proof fn lemma_iterate_eq_bounded_rec(step: CompSpec, count: nat, acc: nat, input: nat)
-    ensures
-        iterate(|x: nat| eval_comp(step, x), count, acc, input)
-            == bounded_rec_iterate(step, count, acc, input),
-    decreases count,
-{
-    if count > 0 {
-        let new_acc = eval_comp(step, pair((count - 1) as nat, pair(acc, input)));
-        lemma_iterate_eq_bounded_rec(step, (count - 1) as nat, new_acc, input);
     }
 }
 
