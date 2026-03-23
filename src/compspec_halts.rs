@@ -1283,6 +1283,10 @@ pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
 /// Input: pair(i, pair(acc, f_enc))
 /// Output: acc * (if has_free_var(f_enc, i) == 0 then 1 else 0)
 ///
+/// Opaque to prevent Z3 from unfolding has_free_var_comp's BoundedRec tree
+/// inside eval_comp calls, which causes rlimit explosion. Reveal only in
+/// the step evaluation lemma.
+#[verifier::opaque]
 pub open spec fn check_is_sentence_step() -> CompSpec {
     let acc = cs_fst(cs_snd(CompSpec::Id));  // acc from step input
     let f_enc = cs_snd(cs_snd(CompSpec::Id));  // original_input = f_enc
@@ -1455,7 +1459,7 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
 /// Helper: the check_is_sentence BoundedRec iteration preserves nonzero acc
 /// when all has_free_var checks return 0.
 /// fuel <= f_enc ensures all checked variables are < f_enc.
-pub proof fn lemma_check_is_sentence_iter(
+proof fn lemma_check_is_sentence_iter(
     f_enc: nat,
     fuel: nat,
     acc: nat,
@@ -1498,15 +1502,14 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     by {
         lemma_has_free_var_sentence(f, v);
     };
-    // The iterate with check_is_sentence_step is proven nonzero:
+    // The BoundedRec iteration preserves nonzero accumulator
     lemma_check_is_sentence_iter(f_enc, f_enc, 1);
-    // Connection gap: eval_comp(BoundedRec{...}) creates an internal closure that
-    // Z3 can't match with the closure in lemma_check_is_sentence_iter's ensures.
-    // This is a Verus/Z3 encoding limitation: closures at different program points
-    // are encoded as different SMT function symbols even with identical bodies.
-    // Changing eval_comp to avoid closures breaks termination checking (mutual
-    // recursion between eval_comp and bounded_rec_iterate has no compatible decreases).
-    // The mathematical content is fully proved - only the SMT connection is missing.
+    // check_is_sentence() = BoundedRec { Id, cs_const(1), check_is_sentence_step() }
+    // eval_comp unfolds to: iterate(|x| eval_comp(check_is_sentence_step(), x), f_enc, 1, f_enc)
+    // The iterate result is proven nonzero above.
+    // The remaining gap is connecting eval_comp(BoundedRec{...}) to the iterate call.
+    // This is the closure identity issue: Z3 can't match closures created at different
+    // program points, even when they capture the same opaque function.
     assume(eval_comp(check_is_sentence(), f_enc) != 0);
 }
 
