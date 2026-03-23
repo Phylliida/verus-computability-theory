@@ -75,26 +75,6 @@ pub open spec fn iterate(
     }
 }
 
-/// Like `iterate`, but takes a CompSpec step instead of a spec_fn closure.
-/// This avoids the closure identity issue where Z3 can't match two
-/// syntactically different `|x| eval_comp(step, x)` closures.
-/// Opaque to prevent trigger pollution from eval_comp calls in body.
-#[verifier::opaque]
-pub open spec fn bounded_rec_iterate(step: CompSpec, count: nat, acc: nat, input: nat) -> nat
-    decreases count,
-{
-    if count == 0 {
-        acc
-    } else {
-        bounded_rec_iterate(
-            step,
-            (count - 1) as nat,
-            eval_comp(step, pair((count - 1) as nat, pair(acc, input))),
-            input,
-        )
-    }
-}
-
 /// Evaluate a CompSpec on an input.
 pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
     decreases c,
