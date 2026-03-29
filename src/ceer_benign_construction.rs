@@ -18,138 +18,138 @@ use verus_group_theory::amalgamated_free_product::lemma_add_relators_num_generat
 
 verus! {
 
-// ============================================================
-// Benign Witness Construction for CEER Relators
-// ============================================================
+//  ============================================================
+//  Benign Witness Construction for CEER Relators
+//  ============================================================
 //
-// Goal: Given a CEER e, construct a BenignWitness showing that the
-// image relator words (universal_word(a) · inverse(universal_word(b))
-// for declared pairs (a,b)) form a benign subgroup of F_2.
+//  Goal: Given a CEER e, construct a BenignWitness showing that the
+//  image relator words (universal_word(a) · inverse(universal_word(b))
+//  for declared pairs (a,b)) form a benign subgroup of F_2.
 //
-// This is the core of Higman's Embedding Theorem applied to CEERs.
+//  This is the core of Higman's Embedding Theorem applied to CEERs.
 //
-// Construction outline (following Aanderaa-Cohen + Rope Trick):
+//  Construction outline (following Aanderaa-Cohen + Rope Trick):
 //
-// 1. Convert CEER enumerator to modular machine MM
-// 2. Build machine group G_M encoding MM's computation
-// 3. Construct overgroup K:
-//    K = free_product(G_M, F_2) / ⟨identification relators⟩
-//    where identification relators connect machine halt configs
-//    to universal words.
+//  1. Convert CEER enumerator to modular machine MM
+//  2. Build machine group G_M encoding MM's computation
+//  3. Construct overgroup K:
+//     K = free_product(G_M, F_2) / ⟨identification relators⟩
+//     where identification relators connect machine halt configs
+//     to universal words.
 //
-//    But K must be finitely presented! The identification relators
-//    are finite because G_M has finitely many halt-producing quadruple
-//    sequences. We identify:
-//      config_word(halt_state, α, β)  ↔  universal_word(decode(α,β))
-//    via a finite template.
+//     But K must be finitely presented! The identification relators
+//     are finite because G_M has finitely many halt-producing quadruple
+//     sequences. We identify:
+//       config_word(halt_state, α, β)  ↔  universal_word(decode(α,β))
+//     via a finite template.
 //
-// 4. L-generators: stable letters of G_M + identification templates
-// 5. Prove all 10 clauses of benign_witness_valid
+//  4. L-generators: stable letters of G_M + identification templates
+//  5. Prove all 10 clauses of benign_witness_valid
 //
-// The mathematical content is in the backward direction:
-//   image in ⟨L⟩_K implies subgroup member in F_2
-// which uses Britton's lemma to show that any word in L
-// corresponds to a halting computation producing a CEER pair.
+//  The mathematical content is in the backward direction:
+//    image in ⟨L⟩_K implies subgroup member in F_2
+//  which uses Britton's lemma to show that any word in L
+//  corresponds to a halting computation producing a CEER pair.
 //
-// Key technical point: the overgroup K is finitely presented because
-// G_M is finitely presented (HNN extension of a finitely presented
-// group is finitely presented) and we add finitely many identification
-// relators.
+//  Key technical point: the overgroup K is finitely presented because
+//  G_M is finitely presented (HNN extension of a finitely presented
+//  group is finitely presented) and we add finitely many identification
+//  relators.
 
-// ============================================================
-// CEER relator generators in F_2
-// ============================================================
+//  ============================================================
+//  CEER relator generators in F_2
+//  ============================================================
 
-/// The CEER relator words as generators of a subgroup of F_2.
-/// For a finite approximation: given declared pairs (a_i, b_i) at
-/// stages s_0, ..., s_{n-1}, the generators are:
-///   image_relator(a_i, b_i) for each i
+///  The CEER relator words as generators of a subgroup of F_2.
+///  For a finite approximation: given declared pairs (a_i, b_i) at
+///  stages s_0, ..., s_{n-1}, the generators are:
+///    image_relator(a_i, b_i) for each i
 pub open spec fn ceer_relator_words_finite(
     e: CEER, pairs: Seq<CeerPair>,
 ) -> Seq<Word> {
     image_relators(pairs)
 }
 
-/// The CEER subgroup: a word is a member iff it equals ε in some
-/// finite quotient F_2/⟨⟨image relators for declared pairs⟩⟩.
-/// Equivalently: w is in the normal closure of all CEER image relators.
+///  The CEER subgroup: a word is a member iff it equals ε in some
+///  finite quotient F_2/⟨⟨image relators for declared pairs⟩⟩.
+///  Equivalently: w is in the normal closure of all CEER image relators.
 pub open spec fn in_ceer_normal_closure(e: CEER, w: Word) -> bool {
     equiv_in_two_gen(e, w, empty_word())
 }
 
-// ============================================================
-// The benign witness construction
-// ============================================================
+//  ============================================================
+//  The benign witness construction
+//  ============================================================
 //
-// For each CEER e, we construct:
-//   K (overgroup): The machine group G_M for the modular machine
-//     simulating e's enumerator, free-producted with F_2,
-//     plus finitely many identification relators.
-//   emb: F_2 → K: right injection into the free product.
-//   L: finitely generated subgroup of K whose intersection with
-//     emb(F_2) equals emb(⟨CEER relators⟩).
+//  For each CEER e, we construct:
+//    K (overgroup): The machine group G_M for the modular machine
+//      simulating e's enumerator, free-producted with F_2,
+//      plus finitely many identification relators.
+//    emb: F_2 → K: right injection into the free product.
+//    L: finitely generated subgroup of K whose intersection with
+//      emb(F_2) equals emb(⟨CEER relators⟩).
 //
-// The construction is axiomatized because the full details require:
-// - Constructing the free product presentation
-// - Choosing identification relators (matching machine configs to universal words)
-// - Proving all 10 benign witness validity clauses
-// - The backward direction (the hard part) uses Britton + faithfulness
+//  The construction is axiomatized because the full details require:
+//  - Constructing the free product presentation
+//  - Choosing identification relators (matching machine configs to universal words)
+//  - Proving all 10 benign witness validity clauses
+//  - The backward direction (the hard part) uses Britton + faithfulness
 //
-// We provide a focused axiom: the CEER relators ARE benign in F_2.
-// This is a weaker axiom than the original (it's a consequence of
-// Higman's theorem for r.e. normal subgroups) and the Rope Trick
-// turns it into the full embedding.
+//  We provide a focused axiom: the CEER relators ARE benign in F_2.
+//  This is a weaker axiom than the original (it's a consequence of
+//  Higman's theorem for r.e. normal subgroups) and the Rope Trick
+//  turns it into the full embedding.
 
-/// The CEER image relators form a benign subgroup of F_2.
+///  The CEER image relators form a benign subgroup of F_2.
 ///
-/// Mathematical justification (Aanderaa-Cohen + Higman):
-/// 1. The CEER enumerator is a register machine, convertible to
-///    a modular machine MM.
-/// 2. MM's computation is faithfully encoded in a f.p. group G_M
-///    via HNN extensions.
-/// 3. The overgroup K = G_M * F_2 / (identification relators)
-///    is finitely presented.
-/// 4. F_2 embeds injectively into K (free product embedding +
-///    Britton's lemma at the HNN levels).
-/// 5. The subgroup L generated by machine stable letters and
-///    identification templates captures exactly the CEER relators:
-///    emb(w) ∈ ⟨L⟩_K iff w ∈ ⟨CEER relators⟩_{F_2}.
+///  Mathematical justification (Aanderaa-Cohen + Higman):
+///  1. The CEER enumerator is a register machine, convertible to
+///     a modular machine MM.
+///  2. MM's computation is faithfully encoded in a f.p. group G_M
+///     via HNN extensions.
+///  3. The overgroup K = G_M * F_2 / (identification relators)
+///     is finitely presented.
+///  4. F_2 embeds injectively into K (free product embedding +
+///     Britton's lemma at the HNN levels).
+///  5. The subgroup L generated by machine stable letters and
+///     identification templates captures exactly the CEER relators:
+///     emb(w) ∈ ⟨L⟩_K iff w ∈ ⟨CEER relators⟩_{F_2}.
 ///
-/// This replaces the monolithic axiom_ceer_embeds_in_fp_group with:
-/// - axiom_ceer_relators_benign (this, focused on benignness)
-/// - lemma_rope_trick (proved, converts benign → f.p. embedding)
+///  This replaces the monolithic axiom_ceer_embeds_in_fp_group with:
+///  - axiom_ceer_relators_benign (this, focused on benignness)
+///  - lemma_rope_trick (proved, converts benign → f.p. embedding)
 #[verifier::external_body]
 pub proof fn axiom_ceer_relators_benign(e: CEER)
     requires
         ceer_wf(e),
     ensures
         exists|gens: Seq<Word>, witness: BenignWitness|
-            // The generators are the image relators from valid CEER pairs
+            //  The generators are the image relators from valid CEER pairs
             (forall|i: int| 0 <= i < gens.len() ==>
                 word_valid(#[trigger] gens[i], 2)) &&
-            // The generators generate exactly the CEER normal closure
+            //  The generators generate exactly the CEER normal closure
             (forall|w: Word|
                 word_valid(w, 2) ==>
                 (in_generated_subgroup(free_group(2), gens, w) <==>
                  #[trigger] in_ceer_normal_closure(e, w))) &&
-            // The benign witness is valid
+            //  The benign witness is valid
             #[trigger] benign_witness_valid(free_group(2), gens, witness),
 {
 }
 
-// ============================================================
-// From benign to f.p. embedding (using Rope Trick)
-// ============================================================
+//  ============================================================
+//  From benign to f.p. embedding (using Rope Trick)
+//  ============================================================
 
-/// The CEER equivalence relation embeds in a finitely presented group.
+///  The CEER equivalence relation embeds in a finitely presented group.
 ///
-/// Proof strategy:
-/// 1. axiom_ceer_relators_benign gives benign witness for CEER relators in F_2
-/// 2. lemma_rope_trick converts benign subgroup of F_2 to f.p. embedding
-/// 3. Compose: universal_word(n) maps through rope trick embedding
-/// 4. Biconditional: ceer_equiv(n,m) ↔ equiv in f.p. group
-///    Forward: ceer_equiv → equiv_in_two_gen → equiv in quotient → equiv in H
-///    Backward: equiv in H → equiv in quotient → needs backward for two_gen
+///  Proof strategy:
+///  1. axiom_ceer_relators_benign gives benign witness for CEER relators in F_2
+///  2. lemma_rope_trick converts benign subgroup of F_2 to f.p. embedding
+///  3. Compose: universal_word(n) maps through rope trick embedding
+///  4. Biconditional: ceer_equiv(n,m) ↔ equiv in f.p. group
+///     Forward: ceer_equiv → equiv_in_two_gen → equiv in quotient → equiv in H
+///     Backward: equiv in H → equiv in quotient → needs backward for two_gen
 pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
     requires
         ceer_wf(e),
@@ -157,7 +157,7 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
         exists|p: Presentation, emb: spec_fn(nat) -> Word|
             #[trigger] is_ceer_fp_embedding(e, p, emb),
 {
-    // Step 1: Get benign witness
+    //  Step 1: Get benign witness
     axiom_ceer_relators_benign(e);
     let pair_gw = choose|gens: Seq<Word>, witness: BenignWitness|
         (forall|i: int| 0 <= i < gens.len() ==>
@@ -170,10 +170,10 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
     let gens = pair_gw.0;
     let witness = pair_gw.1;
 
-    // Step 2: Apply Rope Trick
+    //  Step 2: Apply Rope Trick
     lemma_rope_trick(gens, witness);
 
-    // Step 3: Extract f.p. group and embedding from Rope Trick
+    //  Step 3: Extract f.p. group and embedding from Rope Trick
     let pair_pe = choose|p: Presentation, emb_inner: Seq<Word>|
         presentation_valid(p) &&
         emb_inner.len() == 2 &&
@@ -194,18 +194,18 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
     let p = pair_pe.0;
     let emb_inner: Seq<Word> = pair_pe.1;
 
-    // Step 4: Define the CEER embedding: n ↦ apply_embedding(emb_inner, universal_word(n))
+    //  Step 4: Define the CEER embedding: n ↦ apply_embedding(emb_inner, universal_word(n))
     let emb = |n: nat| -> Word { apply_embedding(emb_inner, universal_word(n)) };
 
-    // Step 5: Prove is_ceer_fp_embedding
+    //  Step 5: Prove is_ceer_fp_embedding
 
-    // 5a: word_valid for emb(n)
+    //  5a: word_valid for emb(n)
     assert forall|n: nat| #[trigger] word_valid(emb(n), p.num_generators) by {
         lemma_universal_word_valid(n);
         lemma_apply_embedding_valid(emb_inner, universal_word(n), p.num_generators);
     }
 
-    // 5b: biconditional: ceer_equiv(n,m) ↔ equiv_in_presentation(p, emb(n), emb(m))
+    //  5b: biconditional: ceer_equiv(n,m) ↔ equiv_in_presentation(p, emb(n), emb(m))
     assert forall|n: nat, m: nat|
         ceer_equiv(e, n, m) <==>
         #[trigger] equiv_in_presentation(p, emb(n), emb(m))
@@ -213,21 +213,21 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
         lemma_universal_word_valid(n);
         lemma_universal_word_valid(m);
 
-        // Forward: ceer_equiv → equiv in quotient → equiv in H
+        //  Forward: ceer_equiv → equiv in quotient → equiv in H
         if ceer_equiv(e, n, m) {
-            // ceer_equiv → equiv_in_two_gen
+            //  ceer_equiv → equiv_in_two_gen
             lemma_two_gen_forward(e, n, m);
-            // equiv_in_two_gen → equiv in add_relators(free_group(2), gens)
+            //  equiv_in_two_gen → equiv in add_relators(free_group(2), gens)
             lemma_two_gen_to_quotient_equiv(e, gens, n, m);
-            // equiv in quotient → equiv in H via rope trick embedding
+            //  equiv in quotient → equiv in H via rope trick embedding
         }
 
-        // Backward: equiv in H → equiv in quotient → ceer_equiv
+        //  Backward: equiv in H → equiv in quotient → ceer_equiv
         if equiv_in_presentation(p, emb(n), emb(m)) {
-            // equiv in H → equiv in quotient via rope trick reflection
-            // equiv in quotient → equiv_in_two_gen
+            //  equiv in H → equiv in quotient via rope trick reflection
+            //  equiv in quotient → equiv_in_two_gen
             lemma_quotient_to_two_gen_equiv(e, gens, n, m);
-            // equiv_in_two_gen → ceer_equiv
+            //  equiv_in_two_gen → ceer_equiv
             lemma_two_gen_backward(e, n, m);
         }
     }
@@ -235,11 +235,11 @@ pub proof fn lemma_ceer_embeds_in_fp_group(e: CEER)
     assert(is_ceer_fp_embedding(e, p, emb));
 }
 
-// ============================================================
-// Bridge helpers
-// ============================================================
+//  ============================================================
+//  Bridge helpers
+//  ============================================================
 
-/// If (a, b) is a declared pair, then image_relator(a, b) is in the CEER normal closure.
+///  If (a, b) is a declared pair, then image_relator(a, b) is in the CEER normal closure.
 proof fn lemma_image_relator_in_normal_closure(e: CEER, a: nat, b: nat, stage: nat)
     requires
         ceer_wf(e),
@@ -247,17 +247,17 @@ proof fn lemma_image_relator_in_normal_closure(e: CEER, a: nat, b: nat, stage: n
     ensures
         in_ceer_normal_closure(e, image_relator(a, b)),
 {
-    // Get equiv_in_two_gen(e, uw(a), uw(b))
+    //  Get equiv_in_two_gen(e, uw(a), uw(b))
     lemma_declared_pair_gives_two_gen_equiv(e, a, b, stage);
 
-    // Extract pairs and presentation
+    //  Extract pairs and presentation
     let pairs = choose|pairs: Seq<CeerPair>|
         pairs_valid(e, pairs) &&
         #[trigger] equiv_in_presentation(two_gen_presentation(pairs), universal_word(a), universal_word(b));
     let p = two_gen_presentation(pairs);
 
-    // In p: uw(a) ≡ uw(b)
-    // So image_relator(a,b) = concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b))) ≡ ε
+    //  In p: uw(a) ≡ uw(b)
+    //  So image_relator(a,b) = concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b))) ≡ ε
     let uw_a = universal_word(a);
     let uw_b = universal_word(b);
     let inv_uw_b = inverse_word(uw_b);
@@ -267,13 +267,13 @@ proof fn lemma_image_relator_in_normal_closure(e: CEER, a: nat, b: nat, stage: n
     lemma_universal_word_valid(b);
     lemma_inverse_word_valid(uw_b, 2);
 
-    // concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b)))
+    //  concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b)))
     lemma_equiv_concat_left(p, uw_a, uw_b, inv_uw_b);
 
-    // concat(uw(b), inv(uw(b))) ≡ ε
+    //  concat(uw(b), inv(uw(b))) ≡ ε
     lemma_word_inverse_right(p, uw_b);
 
-    // Chain: image_relator(a,b) = concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b))) ≡ ε
+    //  Chain: image_relator(a,b) = concat(uw(a), inv(uw(b))) ≡ concat(uw(b), inv(uw(b))) ≡ ε
     assert(image_relator(a, b) =~= concat(uw_a, inv_uw_b));
     lemma_equiv_transitive(p,
         concat(uw_a, inv_uw_b),
@@ -281,12 +281,12 @@ proof fn lemma_image_relator_in_normal_closure(e: CEER, a: nat, b: nat, stage: n
         empty_word(),
     );
 
-    // This is equiv_in_two_gen(e, image_relator(a,b), empty_word()) = in_ceer_normal_closure
+    //  This is equiv_in_two_gen(e, image_relator(a,b), empty_word()) = in_ceer_normal_closure
     assert(equiv_in_presentation(two_gen_presentation(pairs), image_relator(a, b), empty_word()));
     assert(pairs_valid(e, pairs));
 }
 
-/// concat_all of factors from generators is identity in the quotient.
+///  concat_all of factors from generators is identity in the quotient.
 proof fn lemma_concat_all_factors_identity(
     q: Presentation, gens: Seq<Word>, factors: Seq<Word>,
 )
@@ -308,7 +308,7 @@ proof fn lemma_concat_all_factors_identity(
         let f = factors.first();
         let rest = factors.drop_first();
 
-        // rest satisfies preconditions
+        //  rest satisfies preconditions
         assert(factors_from_generators(gens, rest)) by {
             assert forall|k: int| 0 <= k < rest.len()
                 implies is_generator_or_inverse(gens, #[trigger] rest[k])
@@ -317,29 +317,29 @@ proof fn lemma_concat_all_factors_identity(
             }
         };
 
-        // Induction: concat_all(rest) ≡ ε
+        //  Induction: concat_all(rest) ≡ ε
         lemma_concat_all_factors_identity(q, gens, rest);
 
-        // f is gens[j] or inv(gens[j]) for some j
+        //  f is gens[j] or inv(gens[j]) for some j
         let j = choose|j: int| 0 <= j < gens.len() &&
             (f == #[trigger] gens[j] || f == inverse_word(gens[j]));
 
-        // f ≡ ε in q
+        //  f ≡ ε in q
         if f == gens[j] {
             assert(equiv_in_presentation(q, f, empty_word()));
         } else {
-            // f == inv(gens[j]), and gens[j] ≡ ε
+            //  f == inv(gens[j]), and gens[j] ≡ ε
             lemma_inverse_of_identity(q, gens[j]);
             assert(f == inverse_word(gens[j]));
         }
 
-        // concat_all(factors) = concat(f, concat_all(rest))
-        // concat(f, concat_all(rest)) ≡ concat(ε, concat_all(rest)) (by concat_left)
+        //  concat_all(factors) = concat(f, concat_all(rest))
+        //  concat(f, concat_all(rest)) ≡ concat(ε, concat_all(rest)) (by concat_left)
         lemma_equiv_concat_left(q, f, empty_word(), concat_all(rest));
-        // concat(ε, concat_all(rest)) =~= concat_all(rest)
+        //  concat(ε, concat_all(rest)) =~= concat_all(rest)
         assert(concat(empty_word(), concat_all(rest)) =~= concat_all(rest));
         lemma_equiv_refl(q, concat_all(rest));
-        // concat(f, concat_all(rest)) ≡ concat_all(rest) ≡ ε
+        //  concat(f, concat_all(rest)) ≡ concat_all(rest) ≡ ε
         lemma_equiv_transitive(q,
             concat(f, concat_all(rest)),
             concat_all(rest),
@@ -348,7 +348,7 @@ proof fn lemma_concat_all_factors_identity(
     }
 }
 
-/// concat_all of word_valid factors is word_valid.
+///  concat_all of word_valid factors is word_valid.
 proof fn lemma_concat_all_word_valid(factors: Seq<Word>, n: nat)
     requires
         forall|k: int| 0 <= k < factors.len() ==>
@@ -376,8 +376,8 @@ proof fn lemma_concat_all_word_valid(factors: Seq<Word>, n: nat)
     }
 }
 
-/// If w is in the generated subgroup of gens in the free group,
-/// then w ≡ ε in the quotient add_relators(free_group(n), gens).
+///  If w is in the generated subgroup of gens in the free group,
+///  then w ≡ ε in the quotient add_relators(free_group(n), gens).
 proof fn lemma_subgroup_member_identity_in_quotient(
     n: nat, gens: Seq<Word>, w: Word,
 )
@@ -391,12 +391,12 @@ proof fn lemma_subgroup_member_identity_in_quotient(
 {
     let q = add_relators(free_group(n), gens);
 
-    // Extract factors
+    //  Extract factors
     let factors = choose|factors: Seq<Word>|
         #[trigger] factors_from_generators(gens, factors) &&
         equiv_in_presentation(free_group(n), concat_all(factors), w);
 
-    // q is valid
+    //  q is valid
     assert(presentation_valid(free_group(n))) by {
         reveal(presentation_valid);
     };
@@ -404,21 +404,21 @@ proof fn lemma_subgroup_member_identity_in_quotient(
     lemma_add_relators_num_generators(free_group(n), gens);
     assert(q.num_generators == n);
 
-    // Each gens[i] ≡ ε in q
+    //  Each gens[i] ≡ ε in q
     assert forall|i: int| 0 <= i < gens.len()
         implies equiv_in_presentation(q, #[trigger] gens[i], empty_word())
     by {
         lemma_each_added_relator_is_identity(free_group(n), gens, i);
     };
 
-    // concat_all(factors) ≡ ε in q
+    //  concat_all(factors) ≡ ε in q
     lemma_concat_all_factors_identity(q, gens, factors);
 
-    // concat_all(factors) ≡ w in free_group(n), lift to q
+    //  concat_all(factors) ≡ w in free_group(n), lift to q
     lemma_add_relators_preserves_equiv(free_group(n), gens, concat_all(factors), w);
-    // Now: concat_all(factors) ≡ w in q
+    //  Now: concat_all(factors) ≡ w in q
 
-    // Show word_valid(concat_all(factors), n) — each factor is a gen or inv(gen)
+    //  Show word_valid(concat_all(factors), n) — each factor is a gen or inv(gen)
     assert forall|k: int| 0 <= k < factors.len()
         implies word_valid(#[trigger] factors[k], n)
     by {
@@ -431,12 +431,12 @@ proof fn lemma_subgroup_member_identity_in_quotient(
     };
     lemma_concat_all_word_valid(factors, n);
 
-    // Chain: concat_all ≡ ε AND concat_all ≡ w, so w ≡ concat_all ≡ ε
+    //  Chain: concat_all ≡ ε AND concat_all ≡ w, so w ≡ concat_all ≡ ε
     lemma_equiv_symmetric(q, concat_all(factors), w);
     lemma_equiv_transitive(q, w, concat_all(factors), empty_word());
 }
 
-/// Each relator in rs exists in add_relators(p, rs).relators.
+///  Each relator in rs exists in add_relators(p, rs).relators.
 proof fn lemma_add_relators_relators_include(p: Presentation, rs: Seq<Word>, i: int)
     requires
         0 <= i < rs.len(),
@@ -447,28 +447,28 @@ proof fn lemma_add_relators_relators_include(p: Presentation, rs: Seq<Word>, i: 
 {
     let p1 = add_relator(p, rs.first());
     let rs_tail = rs.drop_first();
-    // Key: add_relators(p, rs) == add_relators(p1, rs_tail) by definition
+    //  Key: add_relators(p, rs) == add_relators(p1, rs_tail) by definition
     assert(add_relators(p, rs) == add_relators(p1, rs_tail));
     if i == 0 {
-        // rs[0] = rs.first() is at position p.relators.len() in p1
+        //  rs[0] = rs.first() is at position p.relators.len() in p1
         let idx = p.relators.len() as int;
         assert(p1.relators[idx] == rs.first());
         assert(rs[0] == rs.first());
-        // p1 extends into add_relators(p1, rs_tail)
+        //  p1 extends into add_relators(p1, rs_tail)
         lemma_add_relators_extends(p1, rs_tail);
         assert(add_relators(p1, rs_tail).relators.subrange(0, p1.relators.len() as int) =~= p1.relators);
         assert(idx < p1.relators.len() as int);
         assert(add_relators(p1, rs_tail).relators[idx] == rs[0]);
         assert(add_relators(p, rs).relators[idx] == rs[0]);
     } else {
-        // rs[i] == rs_tail[i-1]
+        //  rs[i] == rs_tail[i-1]
         assert(rs_tail[(i - 1) as int] == rs[i]);
         lemma_add_relators_relators_include(p1, rs_tail, i - 1);
-        // The existential witness carries over since add_relators(p, rs) == add_relators(p1, rs_tail)
+        //  The existential witness carries over since add_relators(p, rs) == add_relators(p1, rs_tail)
     }
 }
 
-/// If each rs[i] ≡ ε in p, then equiv in add_relators(p, rs) implies equiv in p.
+///  If each rs[i] ≡ ε in p, then equiv in add_relators(p, rs) implies equiv in p.
 proof fn lemma_add_derivable_relators_reverse(
     p: Presentation, rs: Seq<Word>, w1: Word, w2: Word,
 )
@@ -485,13 +485,13 @@ proof fn lemma_add_derivable_relators_reverse(
     decreases rs.len(),
 {
     if rs.len() == 0 {
-        // add_relators(p, []) == p, trivial
+        //  add_relators(p, []) == p, trivial
     } else {
         let r = rs.first();
         let p1 = add_relator(p, r);
         let rs_tail = rs.drop_first();
 
-        // presentation_valid(p1)
+        //  presentation_valid(p1)
         assert(presentation_valid(p1)) by {
             reveal(presentation_valid);
             assert forall|i: int| 0 <= i < p1.relators.len()
@@ -506,7 +506,7 @@ proof fn lemma_add_derivable_relators_reverse(
             }
         };
 
-        // Each rs_tail[i] ≡ ε in p1 (lift from p)
+        //  Each rs_tail[i] ≡ ε in p1 (lift from p)
         assert forall|i: int| 0 <= i < rs_tail.len()
             implies equiv_in_presentation(p1, #[trigger] rs_tail[i], empty_word())
         by {
@@ -521,27 +521,27 @@ proof fn lemma_add_derivable_relators_reverse(
             assert(p1.num_generators == p.num_generators);
         };
 
-        // By induction: equiv in add_relators(p1, rs_tail) → equiv in p1
+        //  By induction: equiv in add_relators(p1, rs_tail) → equiv in p1
         lemma_add_derivable_relators_reverse(p1, rs_tail, w1, w2);
 
-        // Now equiv in p1 = add_relator(p, r)
-        // r = rs.first() = rs[0] ≡ ε in p
+        //  Now equiv in p1 = add_relator(p, r)
+        //  r = rs.first() = rs[0] ≡ ε in p
         assert(rs[0] == rs.first());
         lemma_add_derivable_relator_reverse(p, r, w1, w2);
     }
 }
 
-// ============================================================
-// Bridge lemmas: two_gen ↔ quotient equivalence
-// ============================================================
+//  ============================================================
+//  Bridge lemmas: two_gen ↔ quotient equivalence
+//  ============================================================
 
-/// Forward: equiv_in_two_gen implies equiv in the quotient
-/// F_2 / ⟨⟨gens⟩⟩ where gens are the CEER relator words.
+///  Forward: equiv_in_two_gen implies equiv in the quotient
+///  F_2 / ⟨⟨gens⟩⟩ where gens are the CEER relator words.
 ///
-/// equiv_in_two_gen means equiv in some finite two_gen_presentation(pairs).
-/// two_gen_presentation(pairs) = F_2 + image relators for those pairs.
-/// add_relators(free_group(2), gens) = F_2 + all CEER relator generators.
-/// Since each image relator is in ⟨gens⟩, two_gen derivations lift to the quotient.
+///  equiv_in_two_gen means equiv in some finite two_gen_presentation(pairs).
+///  two_gen_presentation(pairs) = F_2 + image relators for those pairs.
+///  add_relators(free_group(2), gens) = F_2 + all CEER relator generators.
+///  Since each image relator is in ⟨gens⟩, two_gen derivations lift to the quotient.
 pub proof fn lemma_two_gen_to_quotient_equiv(
     e: CEER, gens: Seq<Word>, n: nat, m: nat,
 )
@@ -561,7 +561,7 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
             universal_word(m),
         ),
 {
-    // Step 1: Extract pairs from equiv_in_two_gen
+    //  Step 1: Extract pairs from equiv_in_two_gen
     let pairs = choose|pairs: Seq<CeerPair>|
         pairs_valid(e, pairs) &&
         #[trigger] equiv_in_presentation(
@@ -571,7 +571,7 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
     let q = add_relators(free_group(2), gens);
     let q_prime = add_relators(q, irs);
 
-    // Step 2: Show relators_included(two_gen_presentation(pairs), q_prime)
+    //  Step 2: Show relators_included(two_gen_presentation(pairs), q_prime)
     lemma_add_relators_num_generators(free_group(2), gens);
     lemma_add_relators_num_generators(q, irs);
     assert(q.num_generators == 2nat);
@@ -583,20 +583,20 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
             implies exists|j: int| 0 <= j < q_prime.relators.len() &&
                 q_prime.relators[j] == #[trigger] two_gen_presentation(pairs).relators[i]
         by {
-            // two_gen_presentation(pairs).relators[i] == irs[i]
+            //  two_gen_presentation(pairs).relators[i] == irs[i]
             lemma_image_relators_index(pairs, i);
             assert(two_gen_presentation(pairs).relators[i] == irs[i]);
             lemma_add_relators_relators_include(q, irs, i);
         }
     };
 
-    // Step 3: Lift equivalence from two_gen_pres to q_prime
+    //  Step 3: Lift equivalence from two_gen_pres to q_prime
     lemma_relator_inclusion_preserves_equiv(
         two_gen_presentation(pairs), q_prime,
         universal_word(n), universal_word(m),
     );
 
-    // Step 4: Show each irs[i] ≡ ε in q
+    //  Step 4: Show each irs[i] ≡ ε in q
     assert(presentation_valid(free_group(2))) by {
         reveal(presentation_valid);
     };
@@ -605,30 +605,30 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
     assert forall|i: int| 0 <= i < irs.len()
         implies equiv_in_presentation(q, #[trigger] irs[i], empty_word())
     by {
-        // irs[i] = image_relator(pairs[i].a, pairs[i].b)
+        //  irs[i] = image_relator(pairs[i].a, pairs[i].b)
         lemma_image_relators_index(pairs, i);
         let pair = pairs[i];
         assert(irs[i] == image_relator(pair.a, pair.b));
 
-        // pairs_valid gives stage_declares
+        //  pairs_valid gives stage_declares
         assert(stage_declares(e, pair.stage, pair.a, pair.b));
 
-        // image_relator is in CEER normal closure
+        //  image_relator is in CEER normal closure
         lemma_image_relator_in_normal_closure(e, pair.a, pair.b, pair.stage);
         assert(in_ceer_normal_closure(e, image_relator(pair.a, pair.b)));
 
-        // image_relator is word_valid
+        //  image_relator is word_valid
         lemma_image_relator_valid(pair.a, pair.b);
         assert(word_valid(image_relator(pair.a, pair.b), 2));
 
-        // By biconditional: in_generated_subgroup
+        //  By biconditional: in_generated_subgroup
         assert(in_generated_subgroup(free_group(2), gens, image_relator(pair.a, pair.b)));
 
-        // Subgroup member is identity in quotient
+        //  Subgroup member is identity in quotient
         lemma_subgroup_member_identity_in_quotient(2, gens, image_relator(pair.a, pair.b));
     };
 
-    // word_valid for irs
+    //  word_valid for irs
     assert forall|i: int| 0 <= i < irs.len()
         implies word_valid(#[trigger] irs[i], q.num_generators)
     by {
@@ -637,24 +637,24 @@ pub proof fn lemma_two_gen_to_quotient_equiv(
         lemma_image_relator_valid(pair.a, pair.b);
     };
 
-    // Step 5: Remove added relators: equiv in q_prime → equiv in q
+    //  Step 5: Remove added relators: equiv in q_prime → equiv in q
     lemma_universal_word_valid(n);
     lemma_add_derivable_relators_reverse(q, irs, universal_word(n), universal_word(m));
 }
 
-/// KNOWN FALSE — see docs/two-gen-backward-bug.md.
+///  KNOWN FALSE — see docs/two-gen-backward-bug.md.
 ///
-/// Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
-/// abelianizes F_2, making ALL universal words equal. So
-/// equiv_in_presentation(quotient, uw(2), uw(3)) holds but
-/// ceer_equiv(e, 2, 3) does not.
+///  Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
+///  abelianizes F_2, making ALL universal words equal. So
+///  equiv_in_presentation(quotient, uw(2), uw(3)) holds but
+///  ceer_equiv(e, 2, 3) does not.
 ///
-/// Root cause: image relators in F_2 create side-effect commutation
-/// relations beyond the intended CEER identifications.
+///  Root cause: image relators in F_2 create side-effect commutation
+///  relations beyond the intended CEER identifications.
 ///
-/// This lemma is no longer on the critical path — the backward
-/// direction now uses axiom_ceer_fp_embedding (Higman's theorem)
-/// directly, bypassing the F_2 quotient decomposition.
+///  This lemma is no longer on the critical path — the backward
+///  direction now uses axiom_ceer_fp_embedding (Higman's theorem)
+///  directly, bypassing the F_2 quotient decomposition.
 #[verifier::external_body]
 pub proof fn lemma_quotient_to_two_gen_equiv(
     e: CEER, gens: Seq<Word>, n: nat, m: nat,
@@ -677,13 +677,13 @@ pub proof fn lemma_quotient_to_two_gen_equiv(
 {
 }
 
-/// KNOWN FALSE — see docs/two-gen-backward-bug.md.
+///  KNOWN FALSE — see docs/two-gen-backward-bug.md.
 ///
-/// Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
-/// abelianizes F_2, so equiv_in_two_gen(e, uw(2), uw(3)) holds
-/// but ceer_equiv(e, 2, 3) does not.
+///  Counterexample: CEER with pair (0,1). image_relator(0,1) = [x, y⁻¹]
+///  abelianizes F_2, so equiv_in_two_gen(e, uw(2), uw(3)) holds
+///  but ceer_equiv(e, 2, 3) does not.
 ///
-/// No longer on the critical path.
+///  No longer on the critical path.
 #[verifier::external_body]
 pub proof fn lemma_two_gen_backward(e: CEER, n: nat, m: nat)
     requires
@@ -694,11 +694,11 @@ pub proof fn lemma_two_gen_backward(e: CEER, n: nat, m: nat)
 {
 }
 
-// ============================================================
-// Helper: is_ceer_fp_embedding is defined in ceer_benign.rs
-// Re-import it here for the proof.
-// ============================================================
+//  ============================================================
+//  Helper: is_ceer_fp_embedding is defined in ceer_benign.rs
+//  Re-import it here for the proof.
+//  ============================================================
 
 use crate::ceer_benign::is_ceer_fp_embedding;
 
-} // verus!
+} //  verus!

@@ -8,78 +8,78 @@ use verus_group_theory::presentation_lemmas::*;
 
 verus! {
 
-// ============================================================
-// Phase 3: Two-Generator Reduction
-// ============================================================
+//  ============================================================
+//  Phase 3: Two-Generator Reduction
+//  ============================================================
 //
-// Embeds the infinitely-generated CEER group into a 2-generator
-// recursively presented group using universal words:
-//   gen(n) ↦ y⁻ⁿ x yⁿ
+//  Embeds the infinitely-generated CEER group into a 2-generator
+//  recursively presented group using universal words:
+//    gen(n) ↦ y⁻ⁿ x yⁿ
 //
-// The 2-generator group T_G = ⟨x, y | image relators⟩ where
-// each CEER pair (a ≡ b) gives relator:
-//   universal_word(a) · inverse_word(universal_word(b))
+//  The 2-generator group T_G = ⟨x, y | image relators⟩ where
+//  each CEER pair (a ≡ b) gives relator:
+//    universal_word(a) · inverse_word(universal_word(b))
 //
-// Since Presentation uses finite Seq<Word> for relators, we
-// define equivalence existentially: two words are equivalent in
-// T_G if they are equivalent in some finite sub-presentation
-// containing enough image relators.
+//  Since Presentation uses finite Seq<Word> for relators, we
+//  define equivalence existentially: two words are equivalent in
+//  T_G if they are equivalent in some finite sub-presentation
+//  containing enough image relators.
 
-// ============================================================
-// Universal words
-// ============================================================
+//  ============================================================
+//  Universal words
+//  ============================================================
 
-/// y^n = Gen(1)^n
+///  y^n = Gen(1)^n
 pub open spec fn y_power(n: nat) -> Word
 {
     Seq::new(n, |_i: int| Symbol::Gen(1))
 }
 
-/// y^{-n} = Inv(1)^n
+///  y^{-n} = Inv(1)^n
 pub open spec fn y_inv_power(n: nat) -> Word
 {
     Seq::new(n, |_i: int| Symbol::Inv(1))
 }
 
-/// Universal word: y⁻ⁿ x yⁿ
-/// Maps generator n to a word in {x=Gen(0), y=Gen(1)}.
+///  Universal word: y⁻ⁿ x yⁿ
+///  Maps generator n to a word in {x=Gen(0), y=Gen(1)}.
 pub open spec fn universal_word(n: nat) -> Word
 {
     y_inv_power(n) + seq![Symbol::Gen(0)] + y_power(n)
 }
 
-/// The image relator for CEER pair (a, b):
-///   universal_word(a) · inverse_word(universal_word(b))
-/// This is trivial in T_G when a ≡ b.
+///  The image relator for CEER pair (a, b):
+///    universal_word(a) · inverse_word(universal_word(b))
+///  This is trivial in T_G when a ≡ b.
 pub open spec fn image_relator(a: nat, b: nat) -> Word
 {
     concat(universal_word(a), inverse_word(universal_word(b)))
 }
 
-// ============================================================
-// Finite sub-presentations of T_G
-// ============================================================
+//  ============================================================
+//  Finite sub-presentations of T_G
+//  ============================================================
 
-/// A pair record for building finite sub-presentations.
+///  A pair record for building finite sub-presentations.
 pub struct CeerPair {
     pub a: nat,
     pub b: nat,
     pub stage: nat,
 }
 
-/// A finite set of CEER pairs is valid: each pair is actually declared.
+///  A finite set of CEER pairs is valid: each pair is actually declared.
 pub open spec fn pairs_valid(e: CEER, pairs: Seq<CeerPair>) -> bool {
     forall|i: int| 0 <= i < pairs.len() ==>
         stage_declares(e, (#[trigger] pairs[i]).stage, pairs[i].a, pairs[i].b)
 }
 
-/// Build the sequence of image relators from a sequence of CEER pairs.
+///  Build the sequence of image relators from a sequence of CEER pairs.
 pub open spec fn image_relators(pairs: Seq<CeerPair>) -> Seq<Word>
 {
     Seq::new(pairs.len(), |i: int| image_relator(pairs[i].a, pairs[i].b))
 }
 
-/// The finite 2-generator presentation for a given set of CEER pairs.
+///  The finite 2-generator presentation for a given set of CEER pairs.
 pub open spec fn two_gen_presentation(pairs: Seq<CeerPair>) -> Presentation
 {
     Presentation {
@@ -88,24 +88,24 @@ pub open spec fn two_gen_presentation(pairs: Seq<CeerPair>) -> Presentation
     }
 }
 
-// ============================================================
-// Equivalence in T_G (existential over finite sub-presentations)
-// ============================================================
+//  ============================================================
+//  Equivalence in T_G (existential over finite sub-presentations)
+//  ============================================================
 
-/// Two words are equivalent in the 2-generator CEER group T_G if
-/// there exists a finite set of valid CEER pairs such that the
-/// words are equivalent in the corresponding finite presentation.
+///  Two words are equivalent in the 2-generator CEER group T_G if
+///  there exists a finite set of valid CEER pairs such that the
+///  words are equivalent in the corresponding finite presentation.
 pub open spec fn equiv_in_two_gen(e: CEER, w1: Word, w2: Word) -> bool {
     exists|pairs: Seq<CeerPair>|
         pairs_valid(e, pairs) &&
         #[trigger] equiv_in_presentation(two_gen_presentation(pairs), w1, w2)
 }
 
-// ============================================================
-// Helper lemmas
-// ============================================================
+//  ============================================================
+//  Helper lemmas
+//  ============================================================
 
-/// y_power uses only valid symbols for 2 generators.
+///  y_power uses only valid symbols for 2 generators.
 pub proof fn lemma_y_power_valid(n: nat)
     ensures
         word_valid(y_power(n), 2),
@@ -115,7 +115,7 @@ pub proof fn lemma_y_power_valid(n: nat)
     by {}
 }
 
-/// y_inv_power uses only valid symbols for 2 generators.
+///  y_inv_power uses only valid symbols for 2 generators.
 pub proof fn lemma_y_inv_power_valid(n: nat)
     ensures
         word_valid(y_inv_power(n), 2),
@@ -125,7 +125,7 @@ pub proof fn lemma_y_inv_power_valid(n: nat)
     by {}
 }
 
-/// universal_word(n) is word_valid for 2 generators.
+///  universal_word(n) is word_valid for 2 generators.
 pub proof fn lemma_universal_word_valid(n: nat)
     ensures
         word_valid(universal_word(n), 2),
@@ -149,7 +149,7 @@ pub proof fn lemma_universal_word_valid(n: nat)
         (y_inv_power(n) + seq![Symbol::Gen(0)]) + y_power(n));
 }
 
-/// image_relator(a, b) is word_valid for 2 generators.
+///  image_relator(a, b) is word_valid for 2 generators.
 pub proof fn lemma_image_relator_valid(a: nat, b: nat)
     ensures
         word_valid(image_relator(a, b), 2),
@@ -164,8 +164,8 @@ pub proof fn lemma_image_relator_valid(a: nat, b: nat)
     );
 }
 
-/// two_gen_presentation is presentation_valid when pairs are valid.
-/// image_relators indexing: image_relators(pairs)[i] == image_relator(pairs[i].a, pairs[i].b).
+///  two_gen_presentation is presentation_valid when pairs are valid.
+///  image_relators indexing: image_relators(pairs)[i] == image_relator(pairs[i].a, pairs[i].b).
 pub proof fn lemma_image_relators_index(pairs: Seq<CeerPair>, i: int)
     requires
         0 <= i < pairs.len(),
@@ -176,7 +176,7 @@ pub proof fn lemma_image_relators_index(pairs: Seq<CeerPair>, i: int)
     assert(Seq::new(pairs.len(), f)[i] == f(i));
 }
 
-/// two_gen_presentation relator indexing: directly gives p.relators[i].
+///  two_gen_presentation relator indexing: directly gives p.relators[i].
 proof fn lemma_two_gen_relator_index(pairs: Seq<CeerPair>, i: int)
     requires
         0 <= i < pairs.len(),
@@ -204,8 +204,8 @@ pub proof fn lemma_two_gen_presentation_valid(e: CEER, pairs: Seq<CeerPair>)
     }
 }
 
-/// two_gen_presentation(pairs1) extends to two_gen_presentation(pairs1 + pairs2).
-/// (pairs1's relators are a prefix of (pairs1 + pairs2)'s relators.)
+///  two_gen_presentation(pairs1) extends to two_gen_presentation(pairs1 + pairs2).
+///  (pairs1's relators are a prefix of (pairs1 + pairs2)'s relators.)
 proof fn lemma_pairs_extends(
     pairs1: Seq<CeerPair>,
     pairs2: Seq<CeerPair>,
@@ -219,7 +219,7 @@ proof fn lemma_pairs_extends(
     let p1 = two_gen_presentation(pairs1);
     let p12 = two_gen_presentation(pairs1 + pairs2);
 
-    // Show relators prefix match
+    //  Show relators prefix match
     assert(p12.relators.subrange(0, p1.relators.len() as int) =~= p1.relators) by {
         assert(p12.relators.subrange(0, p1.relators.len() as int).len() == p1.relators.len());
         assert forall|i: int| 0 <= i < p1.relators.len()
@@ -233,8 +233,8 @@ proof fn lemma_pairs_extends(
     }
 }
 
-/// Enlarging the pairs set preserves equivalence (monotonicity, left).
-/// pairs1's relators are a prefix of (pairs1 + pairs2)'s relators.
+///  Enlarging the pairs set preserves equivalence (monotonicity, left).
+///  pairs1's relators are a prefix of (pairs1 + pairs2)'s relators.
 pub proof fn lemma_pairs_monotone(
     e: CEER,
     pairs1: Seq<CeerPair>,
@@ -256,9 +256,9 @@ pub proof fn lemma_pairs_monotone(
     );
 }
 
-/// Enlarging the pairs set preserves equivalence (monotonicity, right).
-/// pairs2's relators appear at offset pairs1.len() in (pairs1 + pairs2)'s relators.
-/// Uses relator_inclusion (not prefix-based extends_presentation).
+///  Enlarging the pairs set preserves equivalence (monotonicity, right).
+///  pairs2's relators appear at offset pairs1.len() in (pairs1 + pairs2)'s relators.
+///  Uses relator_inclusion (not prefix-based extends_presentation).
 pub proof fn lemma_pairs_monotone_right(
     e: CEER,
     pairs1: Seq<CeerPair>,
@@ -277,7 +277,7 @@ pub proof fn lemma_pairs_monotone_right(
     let p12 = two_gen_presentation(pairs1 + pairs2);
     let n1 = pairs1.len();
 
-    // Show relators_included by witnessing j = n1 + i for each relator i
+    //  Show relators_included by witnessing j = n1 + i for each relator i
     assert forall|i: int| 0 <= i < p2.relators.len()
         implies exists|j: int| 0 <= j < p12.relators.len() &&
             p12.relators[j] == #[trigger] p2.relators[i]
@@ -291,13 +291,13 @@ pub proof fn lemma_pairs_monotone_right(
     lemma_relator_inclusion_preserves_equiv(p2, p12, w1, w2);
 }
 
-// ============================================================
-// Forward direction: CEER equiv → equiv in T_G
-// ============================================================
+//  ============================================================
+//  Forward direction: CEER equiv → equiv in T_G
+//  ============================================================
 
-/// A single CEER declaration (a ≡ b at stage s) gives
-/// universal_word(a) ≡ universal_word(b) in the finite presentation
-/// with that single pair.
+///  A single CEER declaration (a ≡ b at stage s) gives
+///  universal_word(a) ≡ universal_word(b) in the finite presentation
+///  with that single pair.
 pub proof fn lemma_declared_pair_gives_two_gen_equiv(
     e: CEER, a: nat, b: nat, stage: nat,
 )
@@ -320,15 +320,15 @@ pub proof fn lemma_declared_pair_gives_two_gen_equiv(
     let uw_b = universal_word(b);
     let inv_uw_b = inverse_word(uw_b);
 
-    // relator is image_relator(a, b) = uw_a · inv_uw_b
+    //  relator is image_relator(a, b) = uw_a · inv_uw_b
     lemma_image_relators_index(pairs, 0);
     assert(p.relators[0] =~= image_relator(a, b));
 
-    // uw_a · inv_uw_b ≡ ε in p (relator is identity)
+    //  uw_a · inv_uw_b ≡ ε in p (relator is identity)
     lemma_relator_is_identity(p, 0);
 
-    // Strategy: uw_a · inv_uw_b ≡ ε
-    // uw_a · inv_uw_b · uw_b ≡ ε · uw_b = uw_b
+    //  Strategy: uw_a · inv_uw_b ≡ ε
+    //  uw_a · inv_uw_b · uw_b ≡ ε · uw_b = uw_b
     lemma_equiv_concat_left(p, concat(uw_a, inv_uw_b), empty_word(), uw_b);
     assert(concat(empty_word(), uw_b) =~= uw_b);
     lemma_equiv_refl(p, uw_b);
@@ -337,28 +337,28 @@ pub proof fn lemma_declared_pair_gives_two_gen_equiv(
         concat(empty_word(), uw_b),
         uw_b,
     );
-    // So: (uw_a · inv_uw_b) · uw_b ≡ uw_b
+    //  So: (uw_a · inv_uw_b) · uw_b ≡ uw_b
 
-    // By associativity: (uw_a · inv_uw_b) · uw_b = uw_a · (inv_uw_b · uw_b)
+    //  By associativity: (uw_a · inv_uw_b) · uw_b = uw_a · (inv_uw_b · uw_b)
     assert(concat(concat(uw_a, inv_uw_b), uw_b) =~=
         concat(uw_a, concat(inv_uw_b, uw_b)));
-    // So: uw_a · (inv_uw_b · uw_b) ≡ uw_b
+    //  So: uw_a · (inv_uw_b · uw_b) ≡ uw_b
 
-    // inv_uw_b · uw_b ≡ ε (left inverse)
+    //  inv_uw_b · uw_b ≡ ε (left inverse)
     lemma_word_inverse_left(p, uw_b);
 
-    // uw_a · (inv_uw_b · uw_b) ≡ uw_a · ε (by concat_right)
+    //  uw_a · (inv_uw_b · uw_b) ≡ uw_a · ε (by concat_right)
     lemma_equiv_concat_right(p, uw_a, concat(inv_uw_b, uw_b), empty_word());
 
-    // uw_a · ε = uw_a
+    //  uw_a · ε = uw_a
     assert(concat(uw_a, empty_word()) =~= uw_a);
     lemma_equiv_refl(p, uw_a);
 
-    // Chain: uw_a = uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) ≡ uw_b
-    // Need: uw_a ≡ uw_a · ε = trivial
-    // Need: uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) → need symmetric direction
-    // We have: uw_a · (inv_uw_b · uw_b) ≡ uw_a · ε
-    // So: uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) by symmetry
+    //  Chain: uw_a = uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) ≡ uw_b
+    //  Need: uw_a ≡ uw_a · ε = trivial
+    //  Need: uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) → need symmetric direction
+    //  We have: uw_a · (inv_uw_b · uw_b) ≡ uw_a · ε
+    //  So: uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) by symmetry
     lemma_two_gen_presentation_valid(e, pairs);
     lemma_universal_word_valid(a);
     lemma_universal_word_valid(b);
@@ -370,7 +370,7 @@ pub proof fn lemma_declared_pair_gives_two_gen_equiv(
         concat(uw_a, empty_word()),
     );
 
-    // uw_a = uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) ≡ uw_b
+    //  uw_a = uw_a · ε ≡ uw_a · (inv_uw_b · uw_b) ≡ uw_b
     lemma_equiv_transitive(p,
         uw_a,
         concat(uw_a, concat(inv_uw_b, uw_b)),
@@ -378,7 +378,7 @@ pub proof fn lemma_declared_pair_gives_two_gen_equiv(
     );
 }
 
-/// Transitivity of equiv_in_two_gen.
+///  Transitivity of equiv_in_two_gen.
 pub proof fn lemma_two_gen_equiv_transitive(
     e: CEER, w1: Word, w2: Word, w3: Word,
 )
@@ -408,17 +408,17 @@ pub proof fn lemma_two_gen_equiv_transitive(
         }
     }
 
-    // Lift both equivalences to the combined presentation
+    //  Lift both equivalences to the combined presentation
     lemma_pairs_monotone(e, pairs1, pairs2, w1, w2);
     lemma_pairs_monotone_right(e, pairs1, pairs2, w2, w3);
 
-    // Now both are in two_gen_presentation(combined) — apply transitivity
+    //  Now both are in two_gen_presentation(combined) — apply transitivity
     lemma_equiv_transitive(
         two_gen_presentation(combined), w1, w2, w3,
     );
 }
 
-/// Reflexivity of equiv_in_two_gen.
+///  Reflexivity of equiv_in_two_gen.
 pub proof fn lemma_two_gen_equiv_refl(e: CEER, w: Word)
     ensures
         equiv_in_two_gen(e, w, w),
@@ -432,7 +432,7 @@ pub proof fn lemma_two_gen_equiv_refl(e: CEER, w: Word)
     lemma_equiv_refl(two_gen_presentation(pairs), w);
 }
 
-/// Forward direction: ceer_equiv(n, m) → universal_word(n) ≡ universal_word(m) in T_G.
+///  Forward direction: ceer_equiv(n, m) → universal_word(n) ≡ universal_word(m) in T_G.
 pub proof fn lemma_two_gen_forward(e: CEER, n: nat, m: nat)
     requires
         ceer_equiv(e, n, m),
@@ -443,7 +443,7 @@ pub proof fn lemma_two_gen_forward(e: CEER, n: nat, m: nat)
     lemma_two_gen_forward_chain(e, n, m, chain);
 }
 
-/// Helper: induction on chain for forward direction.
+///  Helper: induction on chain for forward direction.
 proof fn lemma_two_gen_forward_chain(e: CEER, n: nat, m: nat, chain: Seq<nat>)
     requires
         ceer_equiv_chain(e, n, m, chain),
@@ -466,4 +466,4 @@ proof fn lemma_two_gen_forward_chain(e: CEER, n: nat, m: nat, chain: Seq<nat>)
     }
 }
 
-} // verus!
+} //  verus!

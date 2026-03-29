@@ -4,12 +4,12 @@ use crate::ceer_group::*;
 
 verus! {
 
-// ============================================================
-// Phase 1: Specs — word count invariant
-// ============================================================
+//  ============================================================
+//  Phase 1: Specs — word count invariant
+//  ============================================================
 
-/// Contribution of a single symbol to the count for CEER class [target].
-/// Gen(i) with i ~ target contributes +1, Inv(i) with i ~ target contributes -1, else 0.
+///  Contribution of a single symbol to the count for CEER class [target].
+///  Gen(i) with i ~ target contributes +1, Inv(i) with i ~ target contributes -1, else 0.
 pub open spec fn symbol_contributes(e: CEER, sym: CeerSymbol, target: nat) -> int {
     match sym {
         CeerSymbol::Gen { index } => if ceer_equiv(e, index, target) { 1int } else { 0int },
@@ -17,7 +17,7 @@ pub open spec fn symbol_contributes(e: CEER, sym: CeerSymbol, target: nat) -> in
     }
 }
 
-/// Net count of symbols in w contributing to CEER class [target].
+///  Net count of symbols in w contributing to CEER class [target].
 pub open spec fn word_count(e: CEER, w: CeerWord, target: nat) -> int
     decreases w.len(),
 {
@@ -28,11 +28,11 @@ pub open spec fn word_count(e: CEER, w: CeerWord, target: nat) -> int
     }
 }
 
-// ============================================================
-// Phase 2: Additivity
-// ============================================================
+//  ============================================================
+//  Phase 2: Additivity
+//  ============================================================
 
-/// word_count(w1 ++ w2) == word_count(w1) + word_count(w2).
+///  word_count(w1 ++ w2) == word_count(w1) + word_count(w2).
 pub proof fn lemma_word_count_additive(e: CEER, w1: CeerWord, w2: CeerWord, target: nat)
     ensures
         word_count(e, w1 + w2, target) == word_count(e, w1, target) + word_count(e, w2, target),
@@ -47,11 +47,11 @@ pub proof fn lemma_word_count_additive(e: CEER, w1: CeerWord, w2: CeerWord, targ
     }
 }
 
-// ============================================================
-// Phase 3: Cancellation lemmas
-// ============================================================
+//  ============================================================
+//  Phase 3: Cancellation lemmas
+//  ============================================================
 
-/// declared_equiv implies ceer_equiv (via 2-element chain [a, b]).
+///  declared_equiv implies ceer_equiv (via 2-element chain [a, b]).
 proof fn lemma_declared_to_ceer_equiv(e: CEER, a: nat, b: nat)
     requires
         declared_equiv(e, a, b),
@@ -64,7 +64,7 @@ proof fn lemma_declared_to_ceer_equiv(e: CEER, a: nat, b: nat)
     assert(ceer_equiv_chain(e, a, b, chain));
 }
 
-/// Equivalence class transfer: a ~ b implies (a ~ t ↔ b ~ t).
+///  Equivalence class transfer: a ~ b implies (a ~ t ↔ b ~ t).
 proof fn lemma_ceer_equiv_class_transfer(e: CEER, a: nat, b: nat, t: nat)
     requires
         ceer_equiv(e, a, b),
@@ -80,7 +80,7 @@ proof fn lemma_ceer_equiv_class_transfer(e: CEER, a: nat, b: nat, t: nat)
     }
 }
 
-/// A symbol and its formal inverse cancel: sc(s) + sc(inv(s)) == 0.
+///  A symbol and its formal inverse cancel: sc(s) + sc(inv(s)) == 0.
 proof fn lemma_inverse_symbol_cancels(e: CEER, sym: CeerSymbol, target: nat)
     ensures
         symbol_contributes(e, sym, target)
@@ -88,7 +88,7 @@ proof fn lemma_inverse_symbol_cancels(e: CEER, sym: CeerSymbol, target: nat)
 {
 }
 
-/// An inverse pair (from is_ceer_inverse_pair) cancels: sc(s1) + sc(s2) == 0.
+///  An inverse pair (from is_ceer_inverse_pair) cancels: sc(s1) + sc(s2) == 0.
 proof fn lemma_inverse_pair_cancels(e: CEER, s1: CeerSymbol, s2: CeerSymbol, target: nat)
     requires
         is_ceer_inverse_pair(s1, s2),
@@ -97,7 +97,7 @@ proof fn lemma_inverse_pair_cancels(e: CEER, s1: CeerSymbol, s2: CeerSymbol, tar
 {
 }
 
-/// word_count of a singleton word equals symbol_contributes.
+///  word_count of a singleton word equals symbol_contributes.
 proof fn lemma_singleton_word_count(e: CEER, sym: CeerSymbol, target: nat)
     ensures
         word_count(e, seq![sym], target) == symbol_contributes(e, sym, target),
@@ -106,7 +106,7 @@ proof fn lemma_singleton_word_count(e: CEER, sym: CeerSymbol, target: nat)
     assert(seq![sym].drop_first() =~= Seq::<CeerSymbol>::empty());
 }
 
-/// The CEER relator [Gen(a), Inv(b)] has word_count 0 when a ~ b.
+///  The CEER relator [Gen(a), Inv(b)] has word_count 0 when a ~ b.
 proof fn lemma_relator_cancels(e: CEER, a: nat, b: nat, stage: nat, target: nat)
     requires
         stage_declares(e, stage, a, b),
@@ -120,17 +120,17 @@ proof fn lemma_relator_cancels(e: CEER, a: nat, b: nat, stage: nat, target: nat)
     lemma_singleton_word_count(e, ga, target);
     lemma_singleton_word_count(e, ib, target);
 
-    // stage_declares → declared_equiv → ceer_equiv → class transfer
+    //  stage_declares → declared_equiv → ceer_equiv → class transfer
     assert(declared_equiv(e, a, b));
     lemma_declared_to_ceer_equiv(e, a, b);
     lemma_ceer_equiv_class_transfer(e, a, b, target);
 }
 
-// ============================================================
-// Phase 4: Step preservation
-// ============================================================
+//  ============================================================
+//  Phase 4: Step preservation
+//  ============================================================
 
-/// FreeReduce at position p preserves word_count.
+///  FreeReduce at position p preserves word_count.
 proof fn lemma_free_reduce_preserves(e: CEER, w: CeerWord, position: nat, target: nat)
     requires
         position + 1 < w.len(),
@@ -149,7 +149,7 @@ proof fn lemma_free_reduce_preserves(e: CEER, w: CeerWord, position: nat, target
     assert(w =~= prefix + rest);
     lemma_word_count_additive(e, prefix, rest, target);
 
-    // Unfold rest twice: sc(w[p]) + sc(w[p+1]) + word_count(suffix)
+    //  Unfold rest twice: sc(w[p]) + sc(w[p+1]) + word_count(suffix)
     assert(rest.first() == w[position as int]);
     let rest_tail = rest.drop_first();
     assert(rest_tail.first() == w[(position + 1) as int]);
@@ -159,7 +159,7 @@ proof fn lemma_free_reduce_preserves(e: CEER, w: CeerWord, position: nat, target
     lemma_word_count_additive(e, prefix, suffix, target);
 }
 
-/// FreeExpand preserves word_count.
+///  FreeExpand preserves word_count.
 proof fn lemma_free_expand_preserves(
     e: CEER, w: CeerWord, position: nat, sym: CeerSymbol, target: nat,
 )
@@ -178,11 +178,11 @@ proof fn lemma_free_expand_preserves(
     assert(w =~= prefix + suffix);
     lemma_word_count_additive(e, prefix, suffix, target);
 
-    // new_w = (prefix + pair) + suffix
+    //  new_w = (prefix + pair) + suffix
     lemma_word_count_additive(e, prefix + pair, suffix, target);
     lemma_word_count_additive(e, prefix, pair, target);
 
-    // pair has count 0
+    //  pair has count 0
     assert(pair =~= seq![sym] + seq![inverse_ceer_symbol(sym)]);
     lemma_word_count_additive(e, seq![sym], seq![inverse_ceer_symbol(sym)], target);
     lemma_singleton_word_count(e, sym, target);
@@ -190,7 +190,7 @@ proof fn lemma_free_expand_preserves(
     lemma_inverse_symbol_cancels(e, sym, target);
 }
 
-/// RelatorInsert preserves word_count.
+///  RelatorInsert preserves word_count.
 proof fn lemma_relator_insert_preserves(
     e: CEER, w: CeerWord, position: nat, a: nat, b: nat, stage: nat, target: nat,
 )
@@ -210,14 +210,14 @@ proof fn lemma_relator_insert_preserves(
     assert(w =~= prefix + suffix);
     lemma_word_count_additive(e, prefix, suffix, target);
 
-    // new_w = (prefix + rel) + suffix
+    //  new_w = (prefix + rel) + suffix
     lemma_word_count_additive(e, prefix + rel, suffix, target);
     lemma_word_count_additive(e, prefix, rel, target);
 
     lemma_relator_cancels(e, a, b, stage, target);
 }
 
-/// RelatorDelete preserves word_count.
+///  RelatorDelete preserves word_count.
 proof fn lemma_relator_delete_preserves(
     e: CEER, w: CeerWord, position: nat, a: nat, b: nat, stage: nat, target: nat,
 )
@@ -240,13 +240,13 @@ proof fn lemma_relator_delete_preserves(
     assert(w =~= prefix + rest);
     lemma_word_count_additive(e, prefix, rest, target);
 
-    // Unfold rest: [Gen(a), Inv(b)] ++ suffix
+    //  Unfold rest: [Gen(a), Inv(b)] ++ suffix
     assert(rest.first() == (CeerSymbol::Gen { index: a }));
     let rest_tail = rest.drop_first();
     assert(rest_tail.first() == (CeerSymbol::Inv { index: b }));
     assert(rest_tail.drop_first() =~= suffix);
 
-    // sc(Gen(a)) + sc(Inv(b)) == 0 since a ~ b
+    //  sc(Gen(a)) + sc(Inv(b)) == 0 since a ~ b
     assert(declared_equiv(e, a, b));
     lemma_declared_to_ceer_equiv(e, a, b);
     lemma_ceer_equiv_class_transfer(e, a, b, target);
@@ -254,7 +254,7 @@ proof fn lemma_relator_delete_preserves(
     lemma_word_count_additive(e, prefix, suffix, target);
 }
 
-/// Dispatcher: any valid step preserves word_count.
+///  Dispatcher: any valid step preserves word_count.
 proof fn lemma_step_preserves_word_count(
     e: CEER, w: CeerWord, step: CeerGroupStep, target: nat,
 )
@@ -279,11 +279,11 @@ proof fn lemma_step_preserves_word_count(
     }
 }
 
-// ============================================================
-// Phase 5: Final proofs
-// ============================================================
+//  ============================================================
+//  Phase 5: Final proofs
+//  ============================================================
 
-/// A valid derivation preserves word_count.
+///  A valid derivation preserves word_count.
 proof fn lemma_derivation_preserves_word_count(
     e: CEER, w1: CeerWord, w2: CeerWord,
     steps: Seq<CeerGroupStep>, target: nat,
@@ -303,7 +303,7 @@ proof fn lemma_derivation_preserves_word_count(
     }
 }
 
-/// word_count(Gen(n), n) == 1.
+///  word_count(Gen(n), n) == 1.
 proof fn lemma_generator_word_self_count(e: CEER, n: nat)
     ensures
         word_count(e, generator_word(n), n) == 1,
@@ -313,7 +313,7 @@ proof fn lemma_generator_word_self_count(e: CEER, n: nat)
     lemma_ceer_equiv_reflexive(e, n);
 }
 
-/// word_count(Gen(m), n) depends on ceer_equiv(e, m, n).
+///  word_count(Gen(m), n) depends on ceer_equiv(e, m, n).
 proof fn lemma_generator_word_count(e: CEER, m: nat, n: nat)
     ensures
         word_count(e, generator_word(m), n) == if ceer_equiv(e, m, n) { 1int } else { 0int },
@@ -322,7 +322,7 @@ proof fn lemma_generator_word_count(e: CEER, m: nat, n: nat)
     assert(generator_word(m).drop_first() =~= Seq::<CeerSymbol>::empty());
 }
 
-/// Backward direction: ceer_group_equiv(Gen(n), Gen(m)) → ceer_equiv(n, m).
+///  Backward direction: ceer_group_equiv(Gen(n), Gen(m)) → ceer_equiv(n, m).
 pub proof fn lemma_ceer_group_equiv_implies_ceer_equiv(e: CEER, n: nat, m: nat)
     requires
         ceer_group_equiv(e, generator_word(n), generator_word(m)),
@@ -336,11 +336,11 @@ pub proof fn lemma_ceer_group_equiv_implies_ceer_equiv(e: CEER, n: nat, m: nat)
     );
     lemma_generator_word_self_count(e, n);
     lemma_generator_word_count(e, m, n);
-    // 1 == if ceer_equiv(e,m,n) {1} else {0}, so ceer_equiv(e,m,n) holds
+    //  1 == if ceer_equiv(e,m,n) {1} else {0}, so ceer_equiv(e,m,n) holds
     lemma_ceer_equiv_symmetric(e, m, n);
 }
 
-/// Biconditional: ceer_equiv(n, m) ↔ ceer_group_equiv(Gen(n), Gen(m)).
+///  Biconditional: ceer_equiv(n, m) ↔ ceer_group_equiv(Gen(n), Gen(m)).
 pub proof fn lemma_ceer_equiv_iff_group_equiv(e: CEER, n: nat, m: nat)
     ensures
         ceer_equiv(e, n, m) <==>
@@ -354,4 +354,4 @@ pub proof fn lemma_ceer_equiv_iff_group_equiv(e: CEER, n: nat, m: nat)
     }
 }
 
-} // verus!
+} //  verus!

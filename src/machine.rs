@@ -2,30 +2,30 @@ use vstd::prelude::*;
 
 verus! {
 
-/// A register machine instruction.
+///  A register machine instruction.
 pub enum Instruction {
-    /// Increment register `register` by 1.
+    ///  Increment register `register` by 1.
     Inc { register: nat },
-    /// If register `register` > 0, decrement it; otherwise jump to `target`.
+    ///  If register `register` > 0, decrement it; otherwise jump to `target`.
     DecJump { register: nat, target: nat },
-    /// Halt execution.
+    ///  Halt execution.
     Halt,
 }
 
-/// A register machine: a finite sequence of instructions with a fixed register count.
+///  A register machine: a finite sequence of instructions with a fixed register count.
 pub struct RegisterMachine {
     pub instructions: Seq<Instruction>,
     pub num_regs: nat,
 }
 
-/// A machine configuration: program counter + register contents.
+///  A machine configuration: program counter + register contents.
 pub struct Configuration {
     pub pc: nat,
     pub registers: Seq<nat>,
 }
 
-/// Well-formedness of a register machine: num_regs > 0, all register references
-/// are in bounds, all jump targets are valid (≤ instructions.len()).
+///  Well-formedness of a register machine: num_regs > 0, all register references
+///  are in bounds, all jump targets are valid (≤ instructions.len()).
 #[verifier::opaque]
 pub open spec fn machine_wf(m: RegisterMachine) -> bool {
     m.num_regs > 0 &&
@@ -38,13 +38,13 @@ pub open spec fn machine_wf(m: RegisterMachine) -> bool {
         }
 }
 
-/// Well-formedness of a configuration w.r.t. a machine.
+///  Well-formedness of a configuration w.r.t. a machine.
 pub open spec fn config_wf(m: RegisterMachine, c: Configuration) -> bool {
     c.pc <= m.instructions.len() &&
     c.registers.len() == m.num_regs
 }
 
-/// Execute a single instruction. Returns None if halted or pc out of bounds.
+///  Execute a single instruction. Returns None if halted or pc out of bounds.
 pub open spec fn step(m: RegisterMachine, c: Configuration) -> Option<Configuration> {
     if c.pc >= m.instructions.len() {
         None
@@ -58,7 +58,7 @@ pub open spec fn step(m: RegisterMachine, c: Configuration) -> Option<Configurat
                         registers: c.registers.update(register as int, c.registers[register as int] + 1),
                     })
                 } else {
-                    None // malformed
+                    None //  malformed
                 }
             },
             Instruction::DecJump { register, target } => {
@@ -75,19 +75,19 @@ pub open spec fn step(m: RegisterMachine, c: Configuration) -> Option<Configurat
                         })
                     }
                 } else {
-                    None // malformed
+                    None //  malformed
                 }
             },
         }
     }
 }
 
-/// The machine is halted (step returns None).
+///  The machine is halted (step returns None).
 pub open spec fn is_halted(m: RegisterMachine, c: Configuration) -> bool {
     step(m, c) is None
 }
 
-/// Run the machine for `fuel` steps, returning the final configuration.
+///  Run the machine for `fuel` steps, returning the final configuration.
 pub open spec fn run(m: RegisterMachine, c: Configuration, fuel: nat) -> Configuration
     decreases fuel,
 {
@@ -101,7 +101,7 @@ pub open spec fn run(m: RegisterMachine, c: Configuration, fuel: nat) -> Configu
     }
 }
 
-/// The machine halts within `fuel` steps from configuration `c`.
+///  The machine halts within `fuel` steps from configuration `c`.
 pub open spec fn run_halts(m: RegisterMachine, c: Configuration, fuel: nat) -> bool
     decreases fuel,
 {
@@ -115,7 +115,7 @@ pub open spec fn run_halts(m: RegisterMachine, c: Configuration, fuel: nat) -> b
     }
 }
 
-/// The initial configuration: pc=0, reg[0]=input, rest=0.
+///  The initial configuration: pc=0, reg[0]=input, rest=0.
 pub open spec fn initial_config(m: RegisterMachine, input: nat) -> Configuration
     recommends m.num_regs > 0,
 {
@@ -125,12 +125,12 @@ pub open spec fn initial_config(m: RegisterMachine, input: nat) -> Configuration
     }
 }
 
-/// The machine halts on the given input.
+///  The machine halts on the given input.
 pub open spec fn halts(m: RegisterMachine, input: nat) -> bool {
     exists|fuel: nat| run_halts(m, initial_config(m, input), fuel)
 }
 
-/// The output of a halting computation: register 0 of the halted configuration.
+///  The output of a halting computation: register 0 of the halted configuration.
 pub open spec fn output(m: RegisterMachine, input: nat) -> nat
     recommends halts(m, input) && m.num_regs > 0,
 {
@@ -138,11 +138,11 @@ pub open spec fn output(m: RegisterMachine, input: nat) -> nat
     run(m, initial_config(m, input), fuel).registers[0]
 }
 
-// ============================================================
-// Proof lemmas
-// ============================================================
+//  ============================================================
+//  Proof lemmas
+//  ============================================================
 
-/// A well-formed step preserves configuration well-formedness.
+///  A well-formed step preserves configuration well-formedness.
 pub proof fn lemma_step_preserves_config_wf(m: RegisterMachine, c: Configuration)
     requires
         machine_wf(m),
@@ -177,7 +177,7 @@ pub proof fn lemma_step_preserves_config_wf(m: RegisterMachine, c: Configuration
     }
 }
 
-/// If the machine halts at fuel f1 and f2, run gives the same result.
+///  If the machine halts at fuel f1 and f2, run gives the same result.
 pub proof fn lemma_run_deterministic(m: RegisterMachine, c: Configuration, f1: nat, f2: nat)
     requires
         run_halts(m, c, f1),
@@ -202,7 +202,7 @@ pub proof fn lemma_run_deterministic(m: RegisterMachine, c: Configuration, f1: n
     }
 }
 
-/// If the machine is halted, running for any fuel returns the same configuration.
+///  If the machine is halted, running for any fuel returns the same configuration.
 pub proof fn lemma_halted_run_identity(m: RegisterMachine, c: Configuration, fuel: nat)
     requires
         is_halted(m, c),
@@ -216,7 +216,7 @@ pub proof fn lemma_halted_run_identity(m: RegisterMachine, c: Configuration, fue
     }
 }
 
-/// If the machine halts at fuel f1, it also halts at any f2 >= f1 with same result.
+///  If the machine halts at fuel f1, it also halts at any f2 >= f1 with same result.
 pub proof fn lemma_run_monotone(m: RegisterMachine, c: Configuration, f1: nat, f2: nat)
     requires
         run_halts(m, c, f1),
@@ -244,7 +244,7 @@ pub proof fn lemma_run_monotone(m: RegisterMachine, c: Configuration, f1: nat, f
     }
 }
 
-/// A halted configuration halts within any fuel.
+///  A halted configuration halts within any fuel.
 pub proof fn lemma_halted_run_halts(m: RegisterMachine, c: Configuration, fuel: nat)
     requires
         is_halted(m, c),
@@ -253,7 +253,7 @@ pub proof fn lemma_halted_run_halts(m: RegisterMachine, c: Configuration, fuel: 
 {
 }
 
-/// The output of a halting computation is well-defined (unique).
+///  The output of a halting computation is well-defined (unique).
 pub proof fn lemma_output_well_defined(m: RegisterMachine, input: nat)
     requires
         halts(m, input),
@@ -275,4 +275,4 @@ pub proof fn lemma_output_well_defined(m: RegisterMachine, input: nat)
     }
 }
 
-} // verus!
+} //  verus!
