@@ -72,14 +72,14 @@ that halts iff register 0 is nonzero, preserving registers 1 and 2.
 **How to prove:** Append 2 instructions after the total machine:
 ```
 [original instructions...]
-N:   DecJump { register: 0, target: N+1 }  // if reg0 > 0: dec, goto N+1
-N+1: Halt                                    // halt with reg0 decremented
+N:   DecJump { register: 0, target: N+1 }  //  if reg0 > 0: dec, goto N+1
+N+1: Halt                                    //  halt with reg0 decremented
 ```
 Wait, that changes reg0. Better:
 ```
 [original instructions..., replacing all Halt with jump to N]
-N:   DecJump { register: 0, target: N }     // if reg0 == 0: infinite loop
-N+1: Halt                                    // if reg0 > 0: halt
+N:   DecJump { register: 0, target: N }     //  if reg0 == 0: infinite loop
+N+1: Halt                                    //  if reg0 > 0: halt
 ```
 Need to show: reg0 != 0 → machine halts at N+1; reg0 == 0 → infinite loop at N.
 Registers 1, 2 are untouched by the appended instructions.

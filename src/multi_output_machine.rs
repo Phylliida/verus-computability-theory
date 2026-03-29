@@ -5,18 +5,18 @@ use crate::multi_output_primitives::*;
 
 verus! {
 
-// ============================================================
-// Combined machine construction
-// ============================================================
+//  ============================================================
+//  Combined machine construction
+//  ============================================================
 
-/// Register layout:
-///   reg 0: output 0 (also initial input)
-///   reg 1: output 1
-///   reg 2: output 2
-///   reg 3: scratch (always 0)
-///   reg 4 .. 4+N_h-1: bank for rm_halts
-///   reg 4+N_h .. 4+N_h+N_1-1: bank for rm_out1
-///   reg 4+N_h+N_1 .. 4+N_h+N_1+N_2-1: bank for rm_out2
+///  Register layout:
+///    reg 0: output 0 (also initial input)
+///    reg 1: output 1
+///    reg 2: output 2
+///    reg 3: scratch (always 0)
+///    reg 4 .. 4+N_h-1: bank for rm_halts
+///    reg 4+N_h .. 4+N_h+N_1-1: bank for rm_out1
+///    reg 4+N_h+N_1 .. 4+N_h+N_1+N_2-1: bank for rm_out2
 
 pub open spec fn build_multi_output(
     rm_h: RegisterMachine,
@@ -32,16 +32,16 @@ pub open spec fn build_multi_output(
     let scratch: nat = 3;
     let nr = 4 + rm_h.num_regs + rm_1.num_regs + rm_2.num_regs;
 
-    // PC layout: [dist(5)] [embed_h(n_h)] [copy_h(3)] [embed_1(n_1)]
-    //            [copy_1(3)] [embed_2(n_2)] [copy_2(3)] [Halt(1)]
-    let p0: nat = 0;                            // triple distribute
-    let p1: nat = 5;                            // embedded rm_h
-    let p2: nat = 5 + n_h;                      // copy bank_h[0] → reg 0
-    let p3: nat = 8 + n_h;                      // embedded rm_1
-    let p4: nat = 8 + n_h + n_1;                // copy bank_1[0] → reg 1
-    let p5: nat = 11 + n_h + n_1;               // embedded rm_2
-    let p6: nat = 11 + n_h + n_1 + n_2;         // copy bank_2[0] → reg 2
-    let p7: nat = 14 + n_h + n_1 + n_2;         // Halt
+    //  PC layout: [dist(5)] [embed_h(n_h)] [copy_h(3)] [embed_1(n_1)]
+    //             [copy_1(3)] [embed_2(n_2)] [copy_2(3)] [Halt(1)]
+    let p0: nat = 0;                            //  triple distribute
+    let p1: nat = 5;                            //  embedded rm_h
+    let p2: nat = 5 + n_h;                      //  copy bank_h[0] → reg 0
+    let p3: nat = 8 + n_h;                      //  embedded rm_1
+    let p4: nat = 8 + n_h + n_1;                //  copy bank_1[0] → reg 1
+    let p5: nat = 11 + n_h + n_1;               //  embedded rm_2
+    let p6: nat = 11 + n_h + n_1 + n_2;         //  copy bank_2[0] → reg 2
+    let p7: nat = 14 + n_h + n_1 + n_2;         //  Halt
 
     RegisterMachine {
         instructions:
@@ -57,9 +57,9 @@ pub open spec fn build_multi_output(
     }
 }
 
-// ============================================================
-// Well-formedness of the combined machine
-// ============================================================
+//  ============================================================
+//  Well-formedness of the combined machine
+//  ============================================================
 
 proof fn lemma_build_multi_output_wf(
     rm_h: RegisterMachine,
@@ -102,7 +102,7 @@ proof fn lemma_build_multi_output_wf(
             register < nr && target <= tl,
         Instruction::Halt => true,
     } by {
-        // Each region: identify the instruction and check bounds
+        //  Each region: identify the instruction and check bounds
         if i < p1 as int {
         } else if i < p2 as int {
         } else if i < p3 as int {
@@ -115,9 +115,9 @@ proof fn lemma_build_multi_output_wf(
     };
 }
 
-// ============================================================
-// Per-input proof: chain all phases
-// ============================================================
+//  ============================================================
+//  Per-input proof: chain all phases
+//  ============================================================
 
 #[verifier::rlimit(40)]
 proof fn lemma_multi_output_for_input(
@@ -167,9 +167,9 @@ proof fn lemma_multi_output_for_input(
     let p6: nat = 11 + n_h + n_1 + n_2;
     let p7: nat = 14 + n_h + n_1 + n_2;
 
-    // ========================================
-    // Phase 0: triple distribute (fuel: 5*s + 1)
-    // ========================================
+    //  ========================================
+    //  Phase 0: triple distribute (fuel: 5*s + 1)
+    //  ========================================
     assert(m.instructions[0] == mk_dj(0, 5));
     assert(m.instructions[1] == mk_inc(bh));
     assert(m.instructions[2] == mk_inc(b1));
@@ -182,9 +182,9 @@ proof fn lemma_multi_output_for_input(
     assert(c0.registers[bh as int] == s);
     assert(c0.registers[scratch as int] == 0);
 
-    // ========================================
-    // Phase 1: embedded rm_halts (fuel: g1 from embed_reaches_target)
-    // ========================================
+    //  ========================================
+    //  Phase 1: embedded rm_halts (fuel: g1 from embed_reaches_target)
+    //  ========================================
     let init_h = initial_config(rm_h, s);
     assert(init_h.registers.len() == rm_h.num_regs);
     assert forall|r: int| 0 <= r < rm_h.num_regs as int implies
@@ -200,24 +200,24 @@ proof fn lemma_multi_output_for_input(
             assert(idx < b1 as int);
             assert(idx != b1 as int);
             assert(idx != b2 as int);
-            // triple_dist guarantees unchanged for this idx
+            //  triple_dist guarantees unchanged for this idx
             assert(c0.registers[idx] == init.registers[idx]);
-            // init has 0 at all positions > 0
+            //  init has 0 at all positions > 0
             assert(init.registers[idx] == 0);
-            // init_h has 0 at all positions > 0
+            //  init_h has 0 at all positions > 0
             assert(init_h.registers[r] == 0);
         }
     };
     assert(c0.registers[scratch as int] == 0);
     assert(embed_configs_agree(rm_h, bh, p1, scratch, init_h, c0));
 
-    // Instruction matching for embedded rm_h
+    //  Instruction matching for embedded rm_h
     assert forall|i: int| 0 <= i < n_h as int implies
         m.instructions[(i + p1) as int] ==
             embed_instructions(rm_h.instructions, bh, p1, p2, scratch)[i]
     by {};
 
-    // rm_h halts on s
+    //  rm_h halts on s
     let fuel_h: nat = choose|f: nat| run_halts(rm_h, init_h, f);
     lemma_embed_reaches_target(rm_h, m, bh, p1, p2, scratch, init_h, c0, fuel_h);
 
@@ -230,18 +230,18 @@ proof fn lemma_multi_output_for_input(
         run(m, c0, g).registers.len() == m.num_regs;
     let c1 = run(m, c0, g1);
     assert(c1.pc == p2);
-    // c1.registers[bh] == halt_h.registers[0] == output(rm_h, s) == f_h(s)
+    //  c1.registers[bh] == halt_h.registers[0] == output(rm_h, s) == f_h(s)
     assert(c1.registers[bh as int] == f_h(s));
 
-    // ========================================
-    // Phase 2: copy bank_h[0] → reg 0 (fuel: 3*f_h(s) + 1)
-    // ========================================
+    //  ========================================
+    //  Phase 2: copy bank_h[0] → reg 0 (fuel: 3*f_h(s) + 1)
+    //  ========================================
     assert(m.instructions[p2 as int] == mk_dj(bh, p2 + 3));
     assert(m.instructions[(p2 + 1) as int] == mk_inc(0));
     assert(m.instructions[(p2 + 2) as int] == mk_dj(scratch, p2));
     assert(c1.registers[0] == 0) by {
-        // reg 0 was zeroed by Phase 0, not touched by Phase 1 (Phase 1 only touches bh..bh+N_h)
-        // Phase 0 zeroed reg 0, Phase 1 operates at reg_offset = bh = 4, so reg 0 untouched
+        //  reg 0 was zeroed by Phase 0, not touched by Phase 1 (Phase 1 only touches bh..bh+N_h)
+        //  Phase 0 zeroed reg 0, Phase 1 operates at reg_offset = bh = 4, so reg 0 untouched
     };
     lemma_copy_loop_inner(m, c1, bh, 0, scratch, p2, f_h(s), 0, f_h(s));
     let f2: nat = 3 * f_h(s) + 1;
@@ -249,9 +249,9 @@ proof fn lemma_multi_output_for_input(
     assert(c2.pc == p3);
     assert(c2.registers[0] == f_h(s));
 
-    // ========================================
-    // Phase 3: embedded rm_out1
-    // ========================================
+    //  ========================================
+    //  Phase 3: embedded rm_out1
+    //  ========================================
     let init_1 = initial_config(rm_1, s);
     assert forall|r: int| 0 <= r < rm_1.num_regs as int implies
         c2.registers[(r + b1) as int] == init_1.registers[r]
@@ -272,11 +272,11 @@ proof fn lemma_multi_output_for_input(
         run(m, c2, g).registers.len() == m.num_regs;
     let c3 = run(m, c2, g3);
     assert(c3.registers[b1 as int] == f_1(s));
-    assert(c3.registers[0] == f_h(s)); // preserved from Phase 2
+    assert(c3.registers[0] == f_h(s)); //  preserved from Phase 2
 
-    // ========================================
-    // Phase 4: copy bank_1[0] → reg 1
-    // ========================================
+    //  ========================================
+    //  Phase 4: copy bank_1[0] → reg 1
+    //  ========================================
     assert(m.instructions[p4 as int] == mk_dj(b1, p4 + 3));
     assert(m.instructions[(p4 + 1) as int] == mk_inc(1));
     assert(m.instructions[(p4 + 2) as int] == mk_dj(scratch, p4));
@@ -284,11 +284,11 @@ proof fn lemma_multi_output_for_input(
     let f4: nat = 3 * f_1(s) + 1;
     let c4 = run(m, c3, f4);
     assert(c4.registers[1] == f_1(s));
-    assert(c4.registers[0] == f_h(s)); // preserved
+    assert(c4.registers[0] == f_h(s)); //  preserved
 
-    // ========================================
-    // Phase 5: embedded rm_out2
-    // ========================================
+    //  ========================================
+    //  Phase 5: embedded rm_out2
+    //  ========================================
     let init_2 = initial_config(rm_2, s);
     assert forall|r: int| 0 <= r < rm_2.num_regs as int implies
         c4.registers[(r + b2) as int] == init_2.registers[r]
@@ -309,12 +309,12 @@ proof fn lemma_multi_output_for_input(
         run(m, c4, g).registers.len() == m.num_regs;
     let c5 = run(m, c4, g5);
     assert(c5.registers[b2 as int] == f_2(s));
-    assert(c5.registers[0] == f_h(s)); // preserved
-    assert(c5.registers[1] == f_1(s)); // preserved
+    assert(c5.registers[0] == f_h(s)); //  preserved
+    assert(c5.registers[1] == f_1(s)); //  preserved
 
-    // ========================================
-    // Phase 6: copy bank_2[0] → reg 2
-    // ========================================
+    //  ========================================
+    //  Phase 6: copy bank_2[0] → reg 2
+    //  ========================================
     assert(m.instructions[p6 as int] == mk_dj(b2, p6 + 3));
     assert(m.instructions[(p6 + 1) as int] == mk_inc(2));
     assert(m.instructions[(p6 + 2) as int] == mk_dj(scratch, p6));
@@ -322,34 +322,34 @@ proof fn lemma_multi_output_for_input(
     let f6: nat = 3 * f_2(s) + 1;
     let c6 = run(m, c5, f6);
     assert(c6.registers[2] == f_2(s));
-    assert(c6.registers[0] == f_h(s)); // preserved
-    assert(c6.registers[1] == f_1(s)); // preserved
+    assert(c6.registers[0] == f_h(s)); //  preserved
+    assert(c6.registers[1] == f_1(s)); //  preserved
 
-    // ========================================
-    // Phase 7: Halt — one more step
-    // ========================================
+    //  ========================================
+    //  Phase 7: Halt — one more step
+    //  ========================================
     assert(c6.pc == p7);
     assert(m.instructions[p7 as int] is Halt);
     assert(is_halted(m, c6));
-    // run_halts(m, c6, 0)
+    //  run_halts(m, c6, 0)
     assert(run_halts(m, c6, 0));
     assert(run(m, c6, 0) == c6);
 
-    // ========================================
-    // Fuel composition: chain all phases from init to c6
-    // ========================================
+    //  ========================================
+    //  Fuel composition: chain all phases from init to c6
+    //  ========================================
     assert(!is_halted(m, c0));
     lemma_not_halted_means_not_run_halts(m, init, f0);
-    assert(!is_halted(m, c1)); // c1.pc == p2, instruction is copy (DecJump)
-    assert(!is_halted(m, c2)); // c2.pc == p3, instruction is embedded
-    assert(!is_halted(m, c3)); // c3.pc == p4, instruction is copy
-    assert(!is_halted(m, c4)); // c4.pc == p5, instruction is embedded
-    assert(!is_halted(m, c5)); // c5.pc == p6, instruction is copy
+    assert(!is_halted(m, c1)); //  c1.pc == p2, instruction is copy (DecJump)
+    assert(!is_halted(m, c2)); //  c2.pc == p3, instruction is embedded
+    assert(!is_halted(m, c3)); //  c3.pc == p4, instruction is copy
+    assert(!is_halted(m, c4)); //  c4.pc == p5, instruction is embedded
+    assert(!is_halted(m, c5)); //  c5.pc == p6, instruction is copy
 
     assert(run_halts(m, c5, f6));
 
-    // Phase 5→6: run_halts(m, c5, f6) — established above.
-    // Phase 4→5→6:
+    //  Phase 5→6: run_halts(m, c5, f6) — established above.
+    //  Phase 4→5→6:
     if g5 > 0 {
         lemma_not_halted_means_not_run_halts(m, c4, (g5 - 1) as nat);
         lemma_run_halts_split(m, c4, (g5 - 1) as nat, f6);
@@ -357,7 +357,7 @@ proof fn lemma_multi_output_for_input(
     let f56: nat = g5 + f6;
     assert(run_halts(m, c4, f56));
 
-    // Phase 3→4→5→6:
+    //  Phase 3→4→5→6:
     if f4 > 0 {
         lemma_not_halted_means_not_run_halts(m, c3, (f4 - 1) as nat);
         lemma_run_halts_split(m, c3, (f4 - 1) as nat, f56);
@@ -365,7 +365,7 @@ proof fn lemma_multi_output_for_input(
     let f46: nat = f4 + f56;
     assert(run_halts(m, c3, f46));
 
-    // Phase 2→3→4→5→6:
+    //  Phase 2→3→4→5→6:
     if g3 > 0 {
         lemma_not_halted_means_not_run_halts(m, c2, (g3 - 1) as nat);
         lemma_run_halts_split(m, c2, (g3 - 1) as nat, f46);
@@ -373,7 +373,7 @@ proof fn lemma_multi_output_for_input(
     let f36: nat = g3 + f46;
     assert(run_halts(m, c2, f36));
 
-    // Phase 1→2→...→6:
+    //  Phase 1→2→...→6:
     if f2 > 0 {
         lemma_not_halted_means_not_run_halts(m, c1, (f2 - 1) as nat);
         lemma_run_halts_split(m, c1, (f2 - 1) as nat, f36);
@@ -381,7 +381,7 @@ proof fn lemma_multi_output_for_input(
     let f26: nat = f2 + f36;
     assert(run_halts(m, c1, f26));
 
-    // Phase 0→1→...→6:
+    //  Phase 0→1→...→6:
     if g1 > 0 {
         lemma_not_halted_means_not_run_halts(m, c0, (g1 - 1) as nat);
         lemma_run_halts_split(m, c0, (g1 - 1) as nat, f26);
@@ -389,16 +389,16 @@ proof fn lemma_multi_output_for_input(
     let f16: nat = g1 + f26;
     assert(run_halts(m, c0, f16));
 
-    // init→0→1→...→6:
+    //  init→0→1→...→6:
     lemma_not_halted_means_not_run_halts(m, init, (f0 - 1) as nat);
     lemma_run_halts_split(m, init, (f0 - 1) as nat, f16);
     let total: nat = f0 + f16;
     assert(run_halts(m, init, total));
 
-    // Register correctness: run(m, init, total) == c6 (by determinism + all the runs)
-    // Use lemma_run_split to compose: run(m, init, total) goes through the phases
+    //  Register correctness: run(m, init, total) == c6 (by determinism + all the runs)
+    //  Use lemma_run_split to compose: run(m, init, total) goes through the phases
     lemma_run_split(m, init, (f0 - 1) as nat, f16);
-    // run(m, init, f0 + f16) == run(m, run(m, init, f0), f16) == run(m, c0, f16)
+    //  run(m, init, f0 + f16) == run(m, run(m, init, f0), f16) == run(m, c0, f16)
     if g1 > 0 {
         lemma_run_split(m, c0, (g1 - 1) as nat, f26);
     }
@@ -414,16 +414,16 @@ proof fn lemma_multi_output_for_input(
     if g5 > 0 {
         lemma_run_split(m, c4, (g5 - 1) as nat, f6);
     }
-    // Now: run(m, init, total) should equal c6
+    //  Now: run(m, init, total) should equal c6
     lemma_halted_run_identity(m, c6, 0);
     assert(run(m, init, total).registers[0] == f_h(s));
     assert(run(m, init, total).registers[1] == f_1(s));
     assert(run(m, init, total).registers[2] == f_2(s));
 }
 
-// ============================================================
-// Main proof
-// ============================================================
+//  ============================================================
+//  Main proof
+//  ============================================================
 
 pub proof fn lemma_total_multi_output_machine(
     rm_halts: RegisterMachine,
@@ -472,7 +472,7 @@ pub proof fn lemma_total_multi_output_machine(
     let p6: nat = 11 + n_h + n_1 + n_2;
     let p7: nat = 14 + n_h + n_1 + n_2;
 
-    // Prove halts and register correctness for each input
+    //  Prove halts and register correctness for each input
     assert forall|s: nat| halts(m, s) by {
         lemma_multi_output_for_input(
             rm_halts, rm_out1, rm_out2, f_h, f_1, f_2, s);
@@ -487,8 +487,8 @@ pub proof fn lemma_total_multi_output_machine(
     ) by {
         lemma_multi_output_for_input(
             rm_halts, rm_out1, rm_out2, f_h, f_1, f_2, s);
-        // halts gives a specific fuel with the right registers
-        // by determinism, any halting fuel gives the same result
+        //  halts gives a specific fuel with the right registers
+        //  by determinism, any halting fuel gives the same result
         let specific_fuel: nat = choose|f: nat| run_halts(m, initial_config(m, s), f) &&
             run(m, initial_config(m, s), f).registers[0] == f_h(s) &&
             run(m, initial_config(m, s), f).registers[1] == f_1(s) &&
@@ -497,4 +497,4 @@ pub proof fn lemma_total_multi_output_machine(
     };
 }
 
-} // verus!
+} //  verus!

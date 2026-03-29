@@ -3,12 +3,12 @@ use crate::pairing::*;
 
 verus! {
 
-/// A first-order term. For ZFC, we only need variables.
+///  A first-order term. For ZFC, we only need variables.
 pub enum Term {
     Var { index: nat },
 }
 
-/// A first-order formula in the language of set theory (=, ∈).
+///  A first-order formula in the language of set theory (=, ∈).
 pub enum Formula {
     Eq { left: Term, right: Term },
     In { left: Term, right: Term },
@@ -21,18 +21,18 @@ pub enum Formula {
     Exists { var: nat, sub: Box<Formula> },
 }
 
-// ============================================================
-// Structural size
-// ============================================================
+//  ============================================================
+//  Structural size
+//  ============================================================
 
-/// Structural size of a term.
+///  Structural size of a term.
 pub open spec fn term_size(t: Term) -> nat {
     match t {
         Term::Var { .. } => 1,
     }
 }
 
-/// Structural size of a formula.
+///  Structural size of a formula.
 pub open spec fn formula_size(f: Formula) -> nat
     decreases f,
 {
@@ -49,7 +49,7 @@ pub open spec fn formula_size(f: Formula) -> nat
     }
 }
 
-/// Formula size is always positive.
+///  Formula size is always positive.
 pub proof fn lemma_formula_size_pos(f: Formula)
     ensures
         formula_size(f) >= 1,
@@ -68,18 +68,18 @@ pub proof fn lemma_formula_size_pos(f: Formula)
     }
 }
 
-// ============================================================
-// Free variables
-// ============================================================
+//  ============================================================
+//  Free variables
+//  ============================================================
 
-/// Free variables of a term.
+///  Free variables of a term.
 pub open spec fn term_free_vars(t: Term) -> Set<nat> {
     match t {
         Term::Var { index } => set![index],
     }
 }
 
-/// Free variables of a formula.
+///  Free variables of a formula.
 pub open spec fn free_vars(f: Formula) -> Set<nat>
     decreases f,
 {
@@ -96,23 +96,23 @@ pub open spec fn free_vars(f: Formula) -> Set<nat>
     }
 }
 
-/// A formula is a sentence if it has no free variables.
+///  A formula is a sentence if it has no free variables.
 pub open spec fn is_sentence(f: Formula) -> bool {
     free_vars(f) =~= Set::empty()
 }
 
-// ============================================================
-// Substitution
-// ============================================================
+//  ============================================================
+//  Substitution
+//  ============================================================
 
-/// Substitute term t for variable var in a term.
+///  Substitute term t for variable var in a term.
 pub open spec fn subst_term(term: Term, var: nat, t: Term) -> Term {
     match term {
         Term::Var { index } => if index == var { t } else { term },
     }
 }
 
-/// Substitute term t for variable var in a formula (naive, no capture avoidance).
+///  Substitute term t for variable var in a formula (naive, no capture avoidance).
 pub open spec fn subst(f: Formula, var: nat, t: Term) -> Formula
     decreases f,
 {
@@ -138,9 +138,9 @@ pub open spec fn subst(f: Formula, var: nat, t: Term) -> Formula
     }
 }
 
-// ============================================================
-// Helper constructors
-// ============================================================
+//  ============================================================
+//  Helper constructors
+//  ============================================================
 
 pub open spec fn mk_var(i: nat) -> Term {
     Term::Var { index: i }
@@ -182,19 +182,19 @@ pub open spec fn mk_exists(var: nat, sub: Formula) -> Formula {
     Formula::Exists { var, sub: Box::new(sub) }
 }
 
-// ============================================================
-// Gödel encoding
-// ============================================================
+//  ============================================================
+//  Gödel encoding
+//  ============================================================
 
-/// Encode a term as a natural number.
+///  Encode a term as a natural number.
 pub open spec fn encode_term(t: Term) -> nat {
     match t {
         Term::Var { index } => index,
     }
 }
 
-/// Encode a formula as a natural number using Cantor pairing.
-/// Tags: 0=Eq, 1=In, 2=Not, 3=And, 4=Or, 5=Implies, 6=Iff, 7=Forall, 8=Exists
+///  Encode a formula as a natural number using Cantor pairing.
+///  Tags: 0=Eq, 1=In, 2=Not, 3=And, 4=Or, 5=Implies, 6=Iff, 7=Forall, 8=Exists
 pub open spec fn encode(f: Formula) -> nat
     decreases f,
 {
@@ -220,7 +220,7 @@ pub open spec fn encode(f: Formula) -> nat
     }
 }
 
-/// Gödel encoding is injective.
+///  Gödel encoding is injective.
 pub proof fn lemma_encode_injective(f1: Formula, f2: Formula)
     requires
         encode(f1) == encode(f2),
@@ -228,12 +228,12 @@ pub proof fn lemma_encode_injective(f1: Formula, f2: Formula)
         f1 == f2,
     decreases f1,
 {
-    // Different tags => different first component of outer pair => contradiction
-    // Same tag => inner pair equal => recursive injectivity
+    //  Different tags => different first component of outer pair => contradiction
+    //  Same tag => inner pair equal => recursive injectivity
     match f1 {
         Formula::Eq { left: l1, right: r1 } => {
-            // encode(f1) = pair(0, pair(encode_term(l1), encode_term(r1)))
-            // f2 must also have tag 0
+            //  encode(f1) = pair(0, pair(encode_term(l1), encode_term(r1)))
+            //  f2 must also have tag 0
             lemma_tag_determines_variant(f1, f2);
             match f2 {
                 Formula::Eq { left: l2, right: r2 } => {
@@ -350,8 +350,8 @@ pub proof fn lemma_encode_injective(f1: Formula, f2: Formula)
     }
 }
 
-/// Helper: the tag (first component of pair) determines the formula variant.
-/// If encode(f1) == encode(f2), they must have the same tag.
+///  Helper: the tag (first component of pair) determines the formula variant.
+///  If encode(f1) == encode(f2), they must have the same tag.
 proof fn lemma_tag_determines_variant(f1: Formula, f2: Formula)
     requires
         encode(f1) == encode(f2),
@@ -362,12 +362,12 @@ proof fn lemma_tag_determines_variant(f1: Formula, f2: Formula)
     let c1 = formula_content(f1);
     let t2 = formula_tag(f2);
     let c2 = formula_content(f2);
-    // encode(f1) = pair(t1, c1) = pair(t2, c2) = encode(f2)
+    //  encode(f1) = pair(t1, c1) = pair(t2, c2) = encode(f2)
     assert(pair(t1, c1) == pair(t2, c2));
     lemma_pair_injective(t1, c1, t2, c2);
 }
 
-/// Extract the tag from a formula (matches encoding tag assignment).
+///  Extract the tag from a formula (matches encoding tag assignment).
 pub open spec fn formula_tag(f: Formula) -> nat {
     match f {
         Formula::Eq { .. } => 0,
@@ -382,7 +382,7 @@ pub open spec fn formula_tag(f: Formula) -> nat {
     }
 }
 
-/// Extract the content (second component of pair) from a formula encoding.
+///  Extract the content (second component of pair) from a formula encoding.
 pub open spec fn formula_content(f: Formula) -> nat
     decreases f,
 {
@@ -399,7 +399,7 @@ pub open spec fn formula_content(f: Formula) -> nat
     }
 }
 
-/// encode(f) == pair(formula_tag(f), formula_content(f)).
+///  encode(f) == pair(formula_tag(f), formula_content(f)).
 proof fn lemma_encode_is_pair(f: Formula)
     ensures
         encode(f) == pair(formula_tag(f), formula_content(f)),
@@ -418,4 +418,4 @@ proof fn lemma_encode_is_pair(f: Formula)
     }
 }
 
-} // verus!
+} //  verus!

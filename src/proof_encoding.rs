@@ -5,12 +5,12 @@ use crate::proof_system::*;
 
 verus! {
 
-// ============================================================
-// Proof encoding: Gödel-encode proofs as natural numbers
-// ============================================================
+//  ============================================================
+//  Proof encoding: Gödel-encode proofs as natural numbers
+//  ============================================================
 
-/// Encode a justification as a natural number.
-/// Tags: 0=LogicAxiom, 1=Assumption, 2=ModusPonens, 3=Generalization
+///  Encode a justification as a natural number.
+///  Tags: 0=LogicAxiom, 1=Assumption, 2=ModusPonens, 3=Generalization
 pub open spec fn encode_justification(j: Justification) -> nat {
     match j {
         Justification::LogicAxiom => pair(0, 0),
@@ -22,13 +22,13 @@ pub open spec fn encode_justification(j: Justification) -> nat {
     }
 }
 
-/// Encode a proof line (formula, justification) as a natural number.
+///  Encode a proof line (formula, justification) as a natural number.
 pub open spec fn encode_line(line: (Formula, Justification)) -> nat {
     pair(encode(line.0), encode_justification(line.1))
 }
 
-/// Encode a sequence of natural numbers.
-/// Empty → 0, non-empty → pair(head + 1, encode_nat_seq(tail)).
+///  Encode a sequence of natural numbers.
+///  Empty → 0, non-empty → pair(head + 1, encode_nat_seq(tail)).
 pub open spec fn encode_nat_seq(s: Seq<nat>) -> nat
     decreases s.len(),
 {
@@ -39,18 +39,18 @@ pub open spec fn encode_nat_seq(s: Seq<nat>) -> nat
     }
 }
 
-/// Encode a proof as a natural number.
+///  Encode a proof as a natural number.
 pub open spec fn encode_proof(p: Proof) -> nat {
     encode_nat_seq(
         Seq::new(p.lines.len(), |i: int| encode_line(p.lines[i]))
     )
 }
 
-// ============================================================
-// Injectivity lemmas
-// ============================================================
+//  ============================================================
+//  Injectivity lemmas
+//  ============================================================
 
-/// Tag of a justification encoding.
+///  Tag of a justification encoding.
 spec fn justification_tag(j: Justification) -> nat {
     match j {
         Justification::LogicAxiom => 0,
@@ -60,7 +60,7 @@ spec fn justification_tag(j: Justification) -> nat {
     }
 }
 
-/// Content of a justification encoding.
+///  Content of a justification encoding.
 spec fn justification_content(j: Justification) -> nat {
     match j {
         Justification::LogicAxiom => 0,
@@ -72,7 +72,7 @@ spec fn justification_content(j: Justification) -> nat {
     }
 }
 
-/// Justification encoding is injective.
+///  Justification encoding is injective.
 pub proof fn lemma_encode_justification_injective(j1: Justification, j2: Justification)
     requires
         encode_justification(j1) == encode_justification(j2),
@@ -115,7 +115,7 @@ pub proof fn lemma_encode_justification_injective(j1: Justification, j2: Justifi
     }
 }
 
-/// Proof line encoding is injective.
+///  Proof line encoding is injective.
 pub proof fn lemma_encode_line_injective(l1: (Formula, Justification), l2: (Formula, Justification))
     requires
         encode_line(l1) == encode_line(l2),
@@ -130,7 +130,7 @@ pub proof fn lemma_encode_line_injective(l1: (Formula, Justification), l2: (Form
     lemma_encode_justification_injective(l1.1, l2.1);
 }
 
-/// Non-empty sequence has non-zero encoding.
+///  Non-empty sequence has non-zero encoding.
 pub proof fn lemma_encode_nat_seq_nonempty(s: Seq<nat>)
     requires
         s.len() > 0,
@@ -140,7 +140,7 @@ pub proof fn lemma_encode_nat_seq_nonempty(s: Seq<nat>)
     lemma_pair_gt_components(s[0] + 1, encode_nat_seq(s.subrange(1, s.len() as int)));
 }
 
-/// Nat-sequence encoding is injective.
+///  Nat-sequence encoding is injective.
 pub proof fn lemma_encode_nat_seq_injective(s1: Seq<nat>, s2: Seq<nat>)
     requires
         encode_nat_seq(s1) == encode_nat_seq(s2),
@@ -175,7 +175,7 @@ pub proof fn lemma_encode_nat_seq_injective(s1: Seq<nat>, s2: Seq<nat>)
     }
 }
 
-/// Proof encoding is injective.
+///  Proof encoding is injective.
 pub proof fn lemma_encode_proof_injective(p1: Proof, p2: Proof)
     requires
         encode_proof(p1) == encode_proof(p2),
@@ -195,16 +195,16 @@ pub proof fn lemma_encode_proof_injective(p1: Proof, p2: Proof)
     assert(p1.lines =~= p2.lines);
 }
 
-// ============================================================
-// Decode: last element of encoded nat sequence
-// ============================================================
+//  ============================================================
+//  Decode: last element of encoded nat sequence
+//  ============================================================
 
-/// Spec function: recursively find last element of encoded nat sequence.
+///  Spec function: recursively find last element of encoded nat sequence.
 pub open spec fn decode_nat_seq_last(enc: nat) -> nat
     decreases enc,
 {
     if enc == 0 {
-        0  // undefined for empty
+        0  //  undefined for empty
     } else if unpair2(enc) == 0 {
         (unpair1(enc) - 1) as nat
     } else {
@@ -212,7 +212,7 @@ pub open spec fn decode_nat_seq_last(enc: nat) -> nat
     }
 }
 
-/// For non-empty sequences, decode_nat_seq_last recovers the last element.
+///  For non-empty sequences, decode_nat_seq_last recovers the last element.
 pub proof fn lemma_decode_nat_seq_last(s: Seq<nat>)
     requires
         s.len() > 0,
@@ -224,38 +224,38 @@ pub proof fn lemma_decode_nat_seq_last(s: Seq<nat>)
     let tail_seq = s.subrange(1, s.len() as int);
     let tail_enc = encode_nat_seq(tail_seq);
 
-    // enc = pair(s[0] + 1, tail_enc)
+    //  enc = pair(s[0] + 1, tail_enc)
     lemma_unpair1_pair(s[0] + 1, tail_enc);
     lemma_unpair2_pair(s[0] + 1, tail_enc);
     assert(unpair1(enc) == s[0] + 1);
     assert(unpair2(enc) == tail_enc);
 
     if s.len() == 1 {
-        // tail_seq is empty, tail_enc = 0
+        //  tail_seq is empty, tail_enc = 0
         assert(tail_seq.len() == 0);
         assert(tail_enc == 0);
         assert(unpair2(enc) == 0);
-        // decode_nat_seq_last(enc) = unpair1(enc) - 1 = s[0] + 1 - 1 = s[0]
+        //  decode_nat_seq_last(enc) = unpair1(enc) - 1 = s[0] + 1 - 1 = s[0]
         assert(decode_nat_seq_last(enc) == s[0]);
     } else {
-        // tail is non-empty
+        //  tail is non-empty
         assert(tail_seq.len() > 0);
         lemma_encode_nat_seq_nonempty(tail_seq);
         assert(tail_enc > 0);
         assert(unpair2(enc) != 0);
-        // decode_nat_seq_last(enc) = decode_nat_seq_last(tail_enc)
-        // Need: tail_enc < enc for decreases
+        //  decode_nat_seq_last(enc) = decode_nat_seq_last(tail_enc)
+        //  Need: tail_enc < enc for decreases
         lemma_pair_pos_tag_gt_content(s[0] + 1, tail_enc);
         assert(enc > tail_enc);
-        // By induction: decode_nat_seq_last(tail_enc) = tail_seq.last()
+        //  By induction: decode_nat_seq_last(tail_enc) = tail_seq.last()
         lemma_decode_nat_seq_last(tail_seq);
         assert(decode_nat_seq_last(tail_enc) == tail_seq[tail_seq.len() - 1]);
-        // tail_seq.last() == s.last()
+        //  tail_seq.last() == s.last()
         assert(tail_seq[tail_seq.len() - 1] == s[s.len() - 1]);
     }
 }
 
-/// For non-empty sequences, unpair1 of the last pair is last_element + 1.
+///  For non-empty sequences, unpair1 of the last pair is last_element + 1.
 pub proof fn lemma_encode_nat_seq_structure(s: Seq<nat>)
     requires
         s.len() > 0,
@@ -271,4 +271,4 @@ pub proof fn lemma_encode_nat_seq_structure(s: Seq<nat>)
     lemma_unpair2_pair(s[0] + 1, encode_nat_seq(tail));
 }
 
-} // verus!
+} //  verus!

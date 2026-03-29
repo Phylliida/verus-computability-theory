@@ -3,13 +3,13 @@ use crate::machine::*;
 
 verus! {
 
-// ============================================================
-// Helper: connect run(m, c, fuel) with step when fuel == 1
-// ============================================================
+//  ============================================================
+//  Helper: connect run(m, c, fuel) with step when fuel == 1
+//  ============================================================
 
-/// When !is_halted and fuel > 0, run(m, c, fuel) == run(m, step(m, c).unwrap(), fuel - 1).
-/// This is a direct consequence of the run definition, but z3 needs help unfolding
-/// when the fuel expression involves nonlinear arithmetic (e.g. 5 * 0 + 1).
+///  When !is_halted and fuel > 0, run(m, c, fuel) == run(m, step(m, c).unwrap(), fuel - 1).
+///  This is a direct consequence of the run definition, but z3 needs help unfolding
+///  when the fuel expression involves nonlinear arithmetic (e.g. 5 * 0 + 1).
 proof fn lemma_run_unfold_step(m: RegisterMachine, c: Configuration, fuel: nat)
     requires
         !is_halted(m, c),
@@ -20,9 +20,9 @@ proof fn lemma_run_unfold_step(m: RegisterMachine, c: Configuration, fuel: nat)
 {
 }
 
-// ============================================================
-// Instruction constructors (avoids struct literal parsing issues in requires)
-// ============================================================
+//  ============================================================
+//  Instruction constructors (avoids struct literal parsing issues in requires)
+//  ============================================================
 
 pub open spec fn mk_inc(r: nat) -> Instruction {
     Instruction::Inc { register: r }
@@ -32,12 +32,12 @@ pub open spec fn mk_dj(r: nat, t: nat) -> Instruction {
     Instruction::DecJump { register: r, target: t }
 }
 
-// ============================================================
-// Instruction primitives
-// ============================================================
+//  ============================================================
+//  Instruction primitives
+//  ============================================================
 
-/// Shift register indices and PC offsets in an instruction sequence.
-/// Halts are replaced with DecJump{scratch, halt_target} (unconditional jump).
+///  Shift register indices and PC offsets in an instruction sequence.
+///  Halts are replaced with DecJump{scratch, halt_target} (unconditional jump).
 pub open spec fn embed_instructions(
     instrs: Seq<Instruction>,
     reg_offset: nat,
@@ -55,8 +55,8 @@ pub open spec fn embed_instructions(
     })
 }
 
-/// Destructive copy: src → dst (dst must start at 0, src becomes 0).
-/// 3 instructions starting at start_pc. Next instruction at start_pc + 3.
+///  Destructive copy: src → dst (dst must start at 0, src becomes 0).
+///  3 instructions starting at start_pc. Next instruction at start_pc + 3.
 pub open spec fn copy_instrs(
     src: nat, dst: nat, scratch: nat, start_pc: nat,
 ) -> Seq<Instruction> {
@@ -67,8 +67,8 @@ pub open spec fn copy_instrs(
     ]
 }
 
-/// Triple distribute: src → (d1, d2, d3) simultaneously (src destroyed).
-/// 5 instructions starting at start_pc. Next instruction at start_pc + 5.
+///  Triple distribute: src → (d1, d2, d3) simultaneously (src destroyed).
+///  5 instructions starting at start_pc. Next instruction at start_pc + 5.
 pub open spec fn triple_dist_instrs(
     src: nat, d1: nat, d2: nat, d3: nat, scratch: nat, start_pc: nat,
 ) -> Seq<Instruction> {
@@ -81,9 +81,9 @@ pub open spec fn triple_dist_instrs(
     ]
 }
 
-// ============================================================
-// Embedded machine configuration agreement
-// ============================================================
+//  ============================================================
+//  Embedded machine configuration agreement
+//  ============================================================
 
 pub open spec fn embed_configs_agree(
     rm_sub: RegisterMachine,
@@ -100,9 +100,9 @@ pub open spec fn embed_configs_agree(
     c.registers[scratch as int] == 0
 }
 
-// ============================================================
-// Triple distribute loop proof
-// ============================================================
+//  ============================================================
+//  Triple distribute loop proof
+//  ============================================================
 
 #[verifier::rlimit(1000)]
 pub proof fn lemma_triple_dist_inner(
@@ -188,7 +188,7 @@ pub proof fn lemma_triple_dist_inner(
             requires remaining > 0;
         lemma_triple_dist_inner(m, c5, src, d1, d2, d3, scratch,
             start_pc, orig_val, acc + 1, (remaining - 1) as nat);
-        // Help z3 with register preservation through the 5 steps
+        //  Help z3 with register preservation through the 5 steps
         assert forall|r: int| 0 <= r < m.num_regs as int
             && r != src as int && r != d1 as int && r != d2 as int && r != d3 as int
         implies run(m, c, 5 * remaining + 1).registers[r] == c.registers[r]
@@ -198,9 +198,9 @@ pub proof fn lemma_triple_dist_inner(
     }
 }
 
-// ============================================================
-// Destructive copy loop proof
-// ============================================================
+//  ============================================================
+//  Destructive copy loop proof
+//  ============================================================
 
 #[verifier::rlimit(1000)]
 pub proof fn lemma_copy_loop_inner(
@@ -266,7 +266,7 @@ pub proof fn lemma_copy_loop_inner(
             requires remaining > 0;
         lemma_copy_loop_inner(m, c3, src, dst, scratch, start_pc,
             orig_val, acc + 1, (remaining - 1) as nat);
-        // Help z3 with register preservation through the 3 steps
+        //  Help z3 with register preservation through the 3 steps
         assert forall|r: int| 0 <= r < m.num_regs as int && r != src as int && r != dst as int
         implies run(m, c, 3 * remaining + 1).registers[r] == c.registers[r]
         by {
@@ -275,9 +275,9 @@ pub proof fn lemma_copy_loop_inner(
     }
 }
 
-// ============================================================
-// Embedded machine simulation
-// ============================================================
+//  ============================================================
+//  Embedded machine simulation
+//  ============================================================
 
 pub proof fn lemma_embed_step_sim(
     rm_sub: RegisterMachine,
@@ -399,7 +399,7 @@ pub proof fn lemma_embed_reaches_target(
         if c_sub.pc >= n {
             assert(c_sub.pc == n);
             assert(c.pc == halt_target);
-            // Witness g = 0: run(m, c, 0) == c, c.pc == halt_target
+            //  Witness g = 0: run(m, c, 0) == c, c.pc == halt_target
             let g: nat = 0;
             assert(run(m, c, g).pc == halt_target);
             assert(forall|r: int| 0 <= r < rm_sub.num_regs as int ==>
@@ -416,7 +416,7 @@ pub proof fn lemma_embed_reaches_target(
             let next = step(m, c).unwrap();
             assert(next.pc == halt_target);
             assert(next.registers == c.registers);
-            // Witness g = 1: run(m, c, 1) == next
+            //  Witness g = 1: run(m, c, 1) == next
             lemma_run_unfold_step(m, c, 1);
             assert(run(m, c, 1) == run(m, next, 0));
             assert(run(m, next, 0) == next);
@@ -446,11 +446,11 @@ pub proof fn lemma_embed_reaches_target(
     }
 }
 
-// ============================================================
-// Fuel composition helper
-// ============================================================
+//  ============================================================
+//  Fuel composition helper
+//  ============================================================
 
-/// If the machine is not halted after `fuel` steps, it never halted.
+///  If the machine is not halted after `fuel` steps, it never halted.
 pub proof fn lemma_not_halted_means_not_run_halts(
     m: RegisterMachine,
     c: Configuration,
@@ -473,4 +473,4 @@ pub proof fn lemma_not_halted_means_not_run_halts(
     }
 }
 
-} // verus!
+} //  verus!

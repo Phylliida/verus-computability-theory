@@ -97,15 +97,15 @@ lemma_halts_comp_correct()
   ensures is_halts_comp(halts_comp_term())
 {
   assert forall|s| eval_comp(halts_comp_term(), s) != 0 <==> is_valid_iff_proof_code(s) by {
-    // BACKWARD (valid → nonzero): COMPOSITION PROVED (no assumes)
-    //   (a) s != 0: lemma_encode_nat_seq_nonempty ✓
-    //   (b) all lines valid: lemma_all_lines_check_backward [ASSUME]
-    //   (c) conclusion check: lemma_conclusion_check_backward ✓ (no assumes in this fn)
-    //       uses: lemma_eval_last_formula_enc ✓ (in compspec_eval_helpers.rs)
-    //       uses: lemma_check_is_sentence_backward [ASSUME chain]
-    //   (d) cs_and composition with nonlinear_arith ✓
+    //  BACKWARD (valid → nonzero): COMPOSITION PROVED (no assumes)
+    //    (a) s != 0: lemma_encode_nat_seq_nonempty ✓
+    //    (b) all lines valid: lemma_all_lines_check_backward [ASSUME]
+    //    (c) conclusion check: lemma_conclusion_check_backward ✓ (no assumes in this fn)
+    //        uses: lemma_eval_last_formula_enc ✓ (in compspec_eval_helpers.rs)
+    //        uses: lemma_check_is_sentence_backward [ASSUME chain]
+    //    (d) cs_and composition with nonlinear_arith ✓
 
-    // FORWARD (nonzero → valid): [ASSUME]
+    //  FORWARD (nonzero → valid): [ASSUME]
   }
 }
 ```

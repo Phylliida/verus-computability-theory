@@ -3,25 +3,25 @@ use crate::ceer::*;
 
 verus! {
 
-// ============================================================
-// Symbol and word types for the CEER group
-// ============================================================
+//  ============================================================
+//  Symbol and word types for the CEER group
+//  ============================================================
 
-/// Symbol in an infinite generator alphabet (one generator per natural number).
+///  Symbol in an infinite generator alphabet (one generator per natural number).
 pub enum CeerSymbol {
     Gen { index: nat },
     Inv { index: nat },
 }
 
-/// A word in the CEER group's free group.
+///  A word in the CEER group's free group.
 pub type CeerWord = Seq<CeerSymbol>;
 
-/// Single-generator word: [Gen(n)].
+///  Single-generator word: [Gen(n)].
 pub open spec fn generator_word(n: nat) -> CeerWord {
     seq![CeerSymbol::Gen { index: n }]
 }
 
-/// Formal inverse of a symbol.
+///  Formal inverse of a symbol.
 pub open spec fn inverse_ceer_symbol(s: CeerSymbol) -> CeerSymbol {
     match s {
         CeerSymbol::Gen { index } => CeerSymbol::Inv { index },
@@ -29,7 +29,7 @@ pub open spec fn inverse_ceer_symbol(s: CeerSymbol) -> CeerSymbol {
     }
 }
 
-/// Two symbols form an inverse pair (Gen(n) next to Inv(n)).
+///  Two symbols form an inverse pair (Gen(n) next to Inv(n)).
 pub open spec fn is_ceer_inverse_pair(s1: CeerSymbol, s2: CeerSymbol) -> bool {
     match (s1, s2) {
         (CeerSymbol::Gen { index: a }, CeerSymbol::Inv { index: b }) => a == b,
@@ -38,29 +38,29 @@ pub open spec fn is_ceer_inverse_pair(s1: CeerSymbol, s2: CeerSymbol) -> bool {
     }
 }
 
-/// The relator for declaring a ≡ b: Gen(a) · Inv(b).
-/// In the group, this being a relator means Gen(a) = Gen(b).
+///  The relator for declaring a ≡ b: Gen(a) · Inv(b).
+///  In the group, this being a relator means Gen(a) = Gen(b).
 pub open spec fn ceer_relator(a: nat, b: nat) -> CeerWord {
     seq![CeerSymbol::Gen { index: a }, CeerSymbol::Inv { index: b }]
 }
 
-// ============================================================
-// Derivation system
-// ============================================================
+//  ============================================================
+//  Derivation system
+//  ============================================================
 
-/// A single derivation step in the CEER group.
+///  A single derivation step in the CEER group.
 pub enum CeerGroupStep {
-    /// Remove an inverse pair at position (cancels w[pos] and w[pos+1]).
+    ///  Remove an inverse pair at position (cancels w[pos] and w[pos+1]).
     FreeReduce { position: nat },
-    /// Insert sym · sym⁻¹ at position.
+    ///  Insert sym · sym⁻¹ at position.
     FreeExpand { position: nat, sym: CeerSymbol },
-    /// Insert relator Gen(a)·Inv(b) at position, witnessed by CEER stage.
+    ///  Insert relator Gen(a)·Inv(b) at position, witnessed by CEER stage.
     RelatorInsert { position: nat, a: nat, b: nat, stage: nat },
-    /// Delete relator Gen(a)·Inv(b) at position, witnessed by CEER stage.
+    ///  Delete relator Gen(a)·Inv(b) at position, witnessed by CEER stage.
     RelatorDelete { position: nat, a: nat, b: nat, stage: nat },
 }
 
-/// Check that a step is valid for word w under CEER e.
+///  Check that a step is valid for word w under CEER e.
 pub open spec fn ceer_step_valid(e: CEER, w: CeerWord, step: CeerGroupStep) -> bool {
     match step {
         CeerGroupStep::FreeReduce { position } => {
@@ -83,7 +83,7 @@ pub open spec fn ceer_step_valid(e: CEER, w: CeerWord, step: CeerGroupStep) -> b
     }
 }
 
-/// Apply a valid step to produce a new word.
+///  Apply a valid step to produce a new word.
 pub open spec fn apply_ceer_step(w: CeerWord, step: CeerGroupStep) -> CeerWord {
     match step {
         CeerGroupStep::FreeReduce { position } => {
@@ -103,7 +103,7 @@ pub open spec fn apply_ceer_step(w: CeerWord, step: CeerGroupStep) -> CeerWord {
     }
 }
 
-/// A derivation is a sequence of steps transforming w1 into w2.
+///  A derivation is a sequence of steps transforming w1 into w2.
 pub open spec fn ceer_derivation_valid(
     e: CEER, w1: CeerWord, w2: CeerWord, steps: Seq<CeerGroupStep>,
 ) -> bool
@@ -122,16 +122,16 @@ pub open spec fn ceer_derivation_valid(
     }
 }
 
-/// Two words are equivalent in the CEER group if there exists a valid derivation.
+///  Two words are equivalent in the CEER group if there exists a valid derivation.
 pub open spec fn ceer_group_equiv(e: CEER, w1: CeerWord, w2: CeerWord) -> bool {
     exists|steps: Seq<CeerGroupStep>| ceer_derivation_valid(e, w1, w2, steps)
 }
 
-// ============================================================
-// Proofs: forward direction (ceer_equiv → group_equiv)
-// ============================================================
+//  ============================================================
+//  Proofs: forward direction (ceer_equiv → group_equiv)
+//  ============================================================
 
-/// Empty derivation witnesses reflexivity.
+///  Empty derivation witnesses reflexivity.
 pub proof fn lemma_ceer_group_equiv_reflexive(e: CEER, w: CeerWord)
     ensures
         ceer_group_equiv(e, w, w),
@@ -140,7 +140,7 @@ pub proof fn lemma_ceer_group_equiv_reflexive(e: CEER, w: CeerWord)
     assert(ceer_derivation_valid(e, w, w, steps));
 }
 
-/// Concatenating two valid derivations yields a valid derivation.
+///  Concatenating two valid derivations yields a valid derivation.
 pub proof fn lemma_derivation_concat(
     e: CEER,
     w1: CeerWord, w2: CeerWord, w3: CeerWord,
@@ -164,7 +164,7 @@ pub proof fn lemma_derivation_concat(
     }
 }
 
-/// Group equivalence is transitive.
+///  Group equivalence is transitive.
 pub proof fn lemma_ceer_group_equiv_transitive(
     e: CEER, w1: CeerWord, w2: CeerWord, w3: CeerWord,
 )
@@ -179,12 +179,12 @@ pub proof fn lemma_ceer_group_equiv_transitive(
     lemma_derivation_concat(e, w1, w2, w3, steps1, steps2);
 }
 
-/// If stage declares (a, b), then Gen(a) ≡ Gen(b) in the CEER group.
+///  If stage declares (a, b), then Gen(a) ≡ Gen(b) in the CEER group.
 ///
-/// Proof sketch for a ≠ b:
-///   Gen(a) → Gen(a) · [Inv(b) · Gen(b)]  (FreeExpand at pos 1 with Inv(b))
-///            = Gen(a) · Inv(b) · Gen(b)
-///          → Gen(b)                        (RelatorDelete at pos 0, removing Gen(a)·Inv(b))
+///  Proof sketch for a ≠ b:
+///    Gen(a) → Gen(a) · [Inv(b) · Gen(b)]  (FreeExpand at pos 1 with Inv(b))
+///             = Gen(a) · Inv(b) · Gen(b)
+///           → Gen(b)                        (RelatorDelete at pos 0, removing Gen(a)·Inv(b))
 pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
     requires
         declared_equiv(e, n, m),
@@ -196,8 +196,8 @@ pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
     } else {
         let s = choose|s: nat| stage_declares(e, s, n, m);
 
-        // Step 1: FreeExpand Inv(m) at position 1
-        // Gen(n) → Gen(n) · Inv(m) · Gen(m)
+        //  Step 1: FreeExpand Inv(m) at position 1
+        //  Gen(n) → Gen(n) · Inv(m) · Gen(m)
         let step1 = CeerGroupStep::FreeExpand {
             position: 1,
             sym: CeerSymbol::Inv { index: m },
@@ -206,14 +206,14 @@ pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
         assert(ceer_step_valid(e, w0, step1));
         let w1 = apply_ceer_step(w0, step1);
 
-        // w1 should be [Gen(n), Inv(m), Gen(m)]
+        //  w1 should be [Gen(n), Inv(m), Gen(m)]
         assert(w1 =~= seq![
             CeerSymbol::Gen { index: n },
             CeerSymbol::Inv { index: m },
             CeerSymbol::Gen { index: m },
         ]);
 
-        // Step 2: RelatorDelete Gen(n)·Inv(m) at position 0
+        //  Step 2: RelatorDelete Gen(n)·Inv(m) at position 0
         let step2 = CeerGroupStep::RelatorDelete {
             position: 0,
             a: n,
@@ -223,10 +223,10 @@ pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
         assert(ceer_step_valid(e, w1, step2));
         let w2 = apply_ceer_step(w1, step2);
 
-        // w2 should be [Gen(m)]
+        //  w2 should be [Gen(m)]
         assert(w2 =~= generator_word(m));
 
-        // Build single-step derivation for step2: w1 → generator_word(m)
+        //  Build single-step derivation for step2: w1 → generator_word(m)
         let single = seq![step2];
         assert(single.len() == 1);
         assert(single.first() == step2);
@@ -238,7 +238,7 @@ pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
             Seq::<CeerGroupStep>::empty()));
         assert(ceer_derivation_valid(e, w1, generator_word(m), single));
 
-        // Build two-step derivation: w0 → w1 → generator_word(m)
+        //  Build two-step derivation: w0 → w1 → generator_word(m)
         let steps = seq![step1, step2];
         assert(steps.first() == step1);
         assert(steps.drop_first() =~= single);
@@ -246,10 +246,10 @@ pub proof fn lemma_declared_equiv_to_group_equiv(e: CEER, n: nat, m: nat)
     }
 }
 
-/// If ceer_equiv(e, n, m), then Gen(n) ≡ Gen(m) in the CEER group.
+///  If ceer_equiv(e, n, m), then Gen(n) ≡ Gen(m) in the CEER group.
 ///
-/// Proof: induction on the CEER chain. Each declared_equiv link gives
-/// a group equivalence, and we combine them by transitivity.
+///  Proof: induction on the CEER chain. Each declared_equiv link gives
+///  a group equivalence, and we combine them by transitivity.
 pub proof fn lemma_ceer_equiv_implies_group_equiv(e: CEER, n: nat, m: nat)
     requires
         ceer_equiv(e, n, m),
@@ -260,7 +260,7 @@ pub proof fn lemma_ceer_equiv_implies_group_equiv(e: CEER, n: nat, m: nat)
     lemma_chain_to_group_equiv(e, n, m, chain);
 }
 
-/// Helper: induction on chain to get group equivalence.
+///  Helper: induction on chain to get group equivalence.
 proof fn lemma_chain_to_group_equiv(e: CEER, n: nat, m: nat, chain: Seq<nat>)
     requires
         ceer_equiv_chain(e, n, m, chain),
@@ -269,17 +269,17 @@ proof fn lemma_chain_to_group_equiv(e: CEER, n: nat, m: nat, chain: Seq<nat>)
     decreases chain.len(),
 {
     if chain.len() == 1 {
-        // n == m, reflexive
+        //  n == m, reflexive
         lemma_ceer_group_equiv_reflexive(e, generator_word(n));
     } else {
         let mid = chain[1];
-        // declared_equiv(e, n, mid) → group equiv
+        //  declared_equiv(e, n, mid) → group equiv
         lemma_declared_equiv_to_group_equiv(e, n, mid);
 
-        // Recurse on tail for mid → m
+        //  Recurse on tail for mid → m
         lemma_chain_to_group_equiv(e, mid, m, chain.drop_first());
 
-        // Combine by transitivity
+        //  Combine by transitivity
         lemma_ceer_group_equiv_transitive(
             e,
             generator_word(n),
@@ -289,4 +289,4 @@ proof fn lemma_chain_to_group_equiv(e: CEER, n: nat, m: nat, chain: Seq<nat>)
     }
 }
 
-} // verus!
+} //  verus!
