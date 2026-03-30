@@ -19,17 +19,16 @@ proof fn csi_chain(fuel: nat, old_acc: nat, new_acc: nat, pe: nat, re: nat, var:
 //  Non-recursive step helpers: show one step of the BoundedRec
 //  for each formula constructor. Returns the new acc after processing the node.
 
-proof fn step_eq(left: Term, right: Term, var: nat, t: Term, rest: nat,
+proof fn step_eq(f: Formula, left: Term, right: Term, var: nat, t: Term, rest: nat,
     te: nat, ts: nat, pe: nat, re: nat, fuel: nat)
-    requires fuel >= 1,
-    ensures ({ let f = Formula::Eq { left, right };
-        let fe = encode(f); let r = encode(subst(f,var,t));
-        let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
-        let target = pair(rest, pair(1nat, pair(te,ts)));
-        compspec_iterate(check_subst_step(), fuel, acc, pair(pe, pair(re, var)))
-        == compspec_iterate(check_subst_step(), (fuel-1) as nat, target, pair(pe, pair(re, var))) }),
+    requires fuel >= 1, f == (Formula::Eq { left, right }),
+    ensures
+        compspec_iterate(check_subst_step(), fuel,
+            pair(pair(pair(encode(f), encode(subst(f,var,t)))+1, rest), pair(1nat, pair(te,ts))),
+            pair(pe, pair(re, var)))
+        == compspec_iterate(check_subst_step(), (fuel-1) as nat,
+            pair(rest, pair(1nat, pair(te,ts))), pair(pe, pair(re, var))),
 {
-    let f = Formula::Eq { left, right };
     let fe = encode(f); let r = encode(subst(f,var,t));
     let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
     lemma_subst_step_dispatch((fuel-1) as nat, pair(fe,r)+1, rest, 1, te, ts, pe, re, var);
@@ -39,17 +38,16 @@ proof fn step_eq(left: Term, right: Term, var: nat, t: Term, rest: nat,
     csi_chain(fuel, acc, pair(rest, pair(1nat, pair(te,ts))), pe, re, var);
 }
 
-proof fn step_in(left: Term, right: Term, var: nat, t: Term, rest: nat,
+proof fn step_in(f: Formula, left: Term, right: Term, var: nat, t: Term, rest: nat,
     te: nat, ts: nat, pe: nat, re: nat, fuel: nat)
-    requires fuel >= 1,
-    ensures ({ let f = Formula::In { left, right };
-        let fe = encode(f); let r = encode(subst(f,var,t));
-        let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
-        let target = pair(rest, pair(1nat, pair(te,ts)));
-        compspec_iterate(check_subst_step(), fuel, acc, pair(pe, pair(re, var)))
-        == compspec_iterate(check_subst_step(), (fuel-1) as nat, target, pair(pe, pair(re, var))) }),
+    requires fuel >= 1, f == (Formula::In { left, right }),
+    ensures
+        compspec_iterate(check_subst_step(), fuel,
+            pair(pair(pair(encode(f), encode(subst(f,var,t)))+1, rest), pair(1nat, pair(te,ts))),
+            pair(pe, pair(re, var)))
+        == compspec_iterate(check_subst_step(), (fuel-1) as nat,
+            pair(rest, pair(1nat, pair(te,ts))), pair(pe, pair(re, var))),
 {
-    let f = Formula::In { left, right };
     let fe = encode(f); let r = encode(subst(f,var,t));
     let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
     lemma_subst_step_dispatch((fuel-1) as nat, pair(fe,r)+1, rest, 1, te, ts, pe, re, var);
@@ -59,18 +57,17 @@ proof fn step_in(left: Term, right: Term, var: nat, t: Term, rest: nat,
     csi_chain(fuel, acc, pair(rest, pair(1nat, pair(te,ts))), pe, re, var);
 }
 
-proof fn step_not(sub: Formula, var: nat, t: Term, rest: nat,
+proof fn step_not(f: Formula, sub: Formula, var: nat, t: Term, rest: nat,
     te: nat, ts: nat, pe: nat, re: nat, fuel: nat)
-    requires fuel >= 1,
-    ensures ({ let f = Formula::Not { sub: Box::new(sub) };
-        let fe = encode(f); let r = encode(subst(f,var,t));
+    requires fuel >= 1, f == (Formula::Not { sub: Box::new(sub) }),
+    ensures ({
         let sfe = encode(sub); let sre = encode(subst(sub,var,t));
-        let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
         let target = pair(pair(pair(sfe,sre)+1, rest), pair(1nat, pair(te,ts)));
-        compspec_iterate(check_subst_step(), fuel, acc, pair(pe, pair(re, var)))
+        compspec_iterate(check_subst_step(), fuel,
+            pair(pair(pair(encode(f), encode(subst(f,var,t)))+1, rest), pair(1nat, pair(te,ts))),
+            pair(pe, pair(re, var)))
         == compspec_iterate(check_subst_step(), (fuel-1) as nat, target, pair(pe, pair(re, var))) }),
 {
-    let f = Formula::Not { sub: Box::new(sub) };
     let fe = encode(f); let r = encode(subst(f,var,t));
     let acc = pair(pair(pair(fe,r)+1, rest), pair(1nat, pair(te,ts)));
     lemma_subst_preserves_tag(f, var, t);
@@ -254,12 +251,50 @@ pub proof fn lemma_subst_traversal(
     assert(fuel > 0) by { lemma_formula_size_pos(f); }
     match f {
         Formula::Eq { left, right } => {
-            assert(f == Formula::Eq { left, right });
-            assert(formula_size(f) == 1nat);
-            step_eq(left, right, var, t, rest, te, ts, pe, re, fuel);
+            step_eq(f, left, right, var, t, rest, te, ts, pe, re, fuel);
         },
-        _ => {
-            step_eq(Term::Var{index:0}, Term::Var{index:0}, var, t, rest, te, ts, pe, re, fuel);
+        Formula::In { left, right } => {
+            step_in(f, left, right, var, t, rest, te, ts, pe, re, fuel);
+        },
+        Formula::Not { sub } => {
+            step_not(f, *sub, var, t, rest, te, ts, pe, re, fuel);
+            lemma_subst_traversal(*sub, var, t, rest, te, ts, pe, re, (fuel-1) as nat);
+        },
+        Formula::And { left, right } => {
+            step_binary(f, *left, *right, 3, var, t, rest, te, ts, pe, re, fuel);
+            lemma_subst_traversal(*left, var, t, pair(pair(encode(*right), encode(subst(*right,var,t)))+1, rest), te, ts, pe, re, (fuel-1) as nat);
+            lemma_subst_traversal(*right, var, t, rest, te, ts, pe, re, (fuel-1-formula_size(*left)) as nat);
+        },
+        Formula::Or { left, right } => {
+            step_binary(f, *left, *right, 4, var, t, rest, te, ts, pe, re, fuel);
+            lemma_subst_traversal(*left, var, t, pair(pair(encode(*right), encode(subst(*right,var,t)))+1, rest), te, ts, pe, re, (fuel-1) as nat);
+            lemma_subst_traversal(*right, var, t, rest, te, ts, pe, re, (fuel-1-formula_size(*left)) as nat);
+        },
+        Formula::Implies { left, right } => {
+            step_binary(f, *left, *right, 5, var, t, rest, te, ts, pe, re, fuel);
+            lemma_subst_traversal(*left, var, t, pair(pair(encode(*right), encode(subst(*right,var,t)))+1, rest), te, ts, pe, re, (fuel-1) as nat);
+            lemma_subst_traversal(*right, var, t, rest, te, ts, pe, re, (fuel-1-formula_size(*left)) as nat);
+        },
+        Formula::Iff { left, right } => {
+            step_binary(f, *left, *right, 6, var, t, rest, te, ts, pe, re, fuel);
+            lemma_subst_traversal(*left, var, t, pair(pair(encode(*right), encode(subst(*right,var,t)))+1, rest), te, ts, pe, re, (fuel-1) as nat);
+            lemma_subst_traversal(*right, var, t, rest, te, ts, pe, re, (fuel-1-formula_size(*left)) as nat);
+        },
+        Formula::Forall { var: v, sub } => {
+            if v == var {
+                step_forall_bound(v, *sub, var, t, rest, te, ts, pe, re, fuel);
+            } else {
+                step_forall_free(v, *sub, var, t, rest, te, ts, pe, re, fuel);
+                lemma_subst_traversal(*sub, var, t, rest, te, ts, pe, re, (fuel-1) as nat);
+            }
+        },
+        Formula::Exists { var: v, sub } => {
+            if v == var {
+                step_exists_bound(v, *sub, var, t, rest, te, ts, pe, re, fuel);
+            } else {
+                step_exists_free(v, *sub, var, t, rest, te, ts, pe, re, fuel);
+                lemma_subst_traversal(*sub, var, t, rest, te, ts, pe, re, (fuel-1) as nat);
+            }
         },
     }
 }
