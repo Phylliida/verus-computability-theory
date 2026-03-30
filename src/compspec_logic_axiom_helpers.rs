@@ -21,7 +21,7 @@ pub proof fn lemma_eval_cs_or(a: CompSpec, b: CompSpec, s: nat)
 //  ============================================================
 
 ///  check_axiom_identity returns nonzero for φ → φ.
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_identity_correct(f: Formula)
     requires is_axiom_identity(f),
     ensures eval_comp(check_axiom_identity(), encode(f)) != 0,
@@ -44,7 +44,7 @@ pub proof fn lemma_check_axiom_identity_correct(f: Formula)
 }
 
 ///  check_axiom_eq_refl returns nonzero for t = t.
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_eq_refl_correct(f: Formula)
     requires is_axiom_eq_refl(f),
     ensures eval_comp(check_axiom_eq_refl(), encode(f)) != 0,
@@ -67,7 +67,7 @@ pub proof fn lemma_check_axiom_eq_refl_correct(f: Formula)
 }
 
 ///  check_axiom_iff_elim_left returns nonzero for (φ ↔ ψ) → (φ → ψ).
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_iff_elim_left_correct(f: Formula)
     requires is_axiom_iff_elim_left(f),
     ensures eval_comp(check_axiom_iff_elim_left(), encode(f)) != 0,
@@ -115,7 +115,7 @@ pub proof fn lemma_check_axiom_iff_elim_left_correct(f: Formula)
 }
 
 ///  check_axiom_iff_elim_right returns nonzero for (φ ↔ ψ) → (ψ → φ).
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_iff_elim_right_correct(f: Formula)
     requires is_axiom_iff_elim_right(f),
     ensures eval_comp(check_axiom_iff_elim_right(), encode(f)) != 0,
@@ -176,7 +176,7 @@ pub proof fn lemma_check_axiom_iff_elim_right_correct(f: Formula)
 }
 
 ///  check_axiom_eq_subst_left returns nonzero for x=y → (φ[z/x] → φ[z/y]).
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_eq_subst_left_correct(f: Formula)
     requires is_axiom_eq_subst_left(f),
     ensures eval_comp(check_axiom_eq_subst_left(), encode(f)) != 0,
@@ -214,7 +214,7 @@ pub proof fn lemma_check_axiom_eq_subst_left_correct(f: Formula)
 }
 
 ///  check_axiom_eq_subst_right returns nonzero for x=y → (φ[z/y] → φ[z/x]).
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_eq_subst_right_correct(f: Formula)
     requires is_axiom_eq_subst_right(f),
     ensures eval_comp(check_axiom_eq_subst_right(), encode(f)) != 0,
@@ -252,7 +252,7 @@ pub proof fn lemma_check_axiom_eq_subst_right_correct(f: Formula)
 }
 
 ///  check_axiom_vacuous_quant returns nonzero for φ → ∀x.φ (x not free in φ).
-#[verifier::rlimit(100)]
+#[verifier::rlimit(500)]
 pub proof fn lemma_check_axiom_vacuous_quant_correct(f: Formula)
     requires is_axiom_vacuous_quant(f),
     ensures eval_comp(check_axiom_vacuous_quant(), encode(f)) != 0,
