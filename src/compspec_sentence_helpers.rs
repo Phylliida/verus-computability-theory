@@ -189,6 +189,30 @@ proof fn lemma_iterate_ext(
 ///  Avoids the closure identity problem by directly reasoning about the BoundedRec
 ///  evaluation using induction on the fuel count, matching the structure of eval_comp
 ///  rather than trying to bridge between two different closures.
+///  compspec_iterate version of the sentence check iteration.
+///  Proves compspec_iterate(check_is_sentence_step(), fuel, acc, f_enc) != 0
+///  when acc != 0 and all has_free_var checks return 0.
+proof fn lemma_cis_compspec_iterate(f_enc: nat, fuel: nat, acc: nat)
+    requires
+        acc != 0,
+        fuel <= f_enc,
+        forall|v: nat| v < f_enc ==>
+            eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0,
+    ensures
+        compspec_iterate(check_is_sentence_step(), fuel, acc, f_enc) != 0,
+    decreases fuel,
+{
+    if fuel > 0 {
+        let i = (fuel - 1) as nat;
+        assert(i < f_enc);
+        lemma_cis_step_preserves(i, acc, f_enc);
+        lemma_cis_compspec_iterate(f_enc, (fuel - 1) as nat, acc);
+    }
+}
+
+///  Main: for encoded sentences, check_is_sentence returns nonzero.
+///  Uses lemma_eval_bounded_rec to unfold eval_comp(BoundedRec{...}) to compspec_iterate,
+///  then lemma_cis_compspec_iterate to prove the iteration result is nonzero.
 pub proof fn lemma_check_is_sentence_nonzero(f_enc: nat)
     requires
         forall|v: nat| v < f_enc ==>
@@ -196,23 +220,12 @@ pub proof fn lemma_check_is_sentence_nonzero(f_enc: nat)
     ensures
         eval_comp(check_is_sentence(), f_enc) != 0,
 {
-    //  check_is_sentence() = BoundedRec { Id, cs_const(1), check_is_sentence_step() }
-    //  We know iterate(|x| eval_comp(step, x), f_enc, 1, f_enc) != 0
-    //  from lemma_check_is_sentence_iter.
-    //  The issue is connecting eval_comp(BoundedRec{...}) to the iterate.
-    //
-    //  Strategy: prove by induction that the BoundedRec's internal iterate
-    //  matches our external iterate, using lemma_iterate_ext.
-    lemma_check_is_sentence_iter(f_enc, f_enc, 1);
-    //  Now we have: iterate(step_fn, f_enc, 1, f_enc) != 0
-    //  where step_fn = |x| eval_comp(check_is_sentence_step(), x)
-    //
-    //  And eval_comp(check_is_sentence(), f_enc) unfolds to:
-    //    iterate(|x| eval_comp(*Box::new(check_is_sentence_step()), x), f_enc, 1, f_enc)
-    //
-    //  These two iterates use pointwise-equal step functions.
-    //  Help Z3 by revealing eval_comp with enough fuel.
-    reveal_with_fuel(eval_comp, 2);
+    //  Step 1: Unfold eval_comp(check_is_sentence(), f_enc) to compspec_iterate
+    lemma_eval_bounded_rec(CompSpec::Id, cs_const(1), check_is_sentence_step(), f_enc);
+    //  Now: eval_comp(check_is_sentence(), f_enc) == compspec_iterate(step, f_enc, 1, f_enc)
+
+    //  Step 2: Prove compspec_iterate(step, f_enc, 1, f_enc) != 0
+    lemma_cis_compspec_iterate(f_enc, f_enc, 1);
 }
 
 } //  verus!
