@@ -1437,6 +1437,70 @@ pub proof fn lemma_eval_cs_and(a: CompSpec, b: CompSpec, s: nat)
     //  eval_comp(Mul{l,r}, s) = eval_comp(l, s) * eval_comp(r, s)
 }
 
+///  Helper: IfZero when condition evaluates to 0 → take then branch.
+pub proof fn lemma_eval_ifzero_then(
+    cond: CompSpec, then_br: CompSpec, else_br: CompSpec, s: nat,
+)
+    requires
+        eval_comp(cond, s) == 0,
+    ensures
+        eval_comp(CompSpec::IfZero {
+            cond: Box::new(cond),
+            then_br: Box::new(then_br),
+            else_br: Box::new(else_br),
+        }, s) == eval_comp(then_br, s),
+{
+}
+
+///  Helper: IfZero when condition evaluates to nonzero → take else branch.
+pub proof fn lemma_eval_ifzero_else(
+    cond: CompSpec, then_br: CompSpec, else_br: CompSpec, s: nat,
+)
+    requires
+        eval_comp(cond, s) != 0,
+    ensures
+        eval_comp(CompSpec::IfZero {
+            cond: Box::new(cond),
+            then_br: Box::new(then_br),
+            else_br: Box::new(else_br),
+        }, s) == eval_comp(else_br, s),
+{
+}
+
+///  Helper: eval_comp(CantorPair{l, r}, s) == pair(eval_comp(l, s), eval_comp(r, s))
+pub proof fn lemma_eval_pair(l: CompSpec, r: CompSpec, s: nat)
+    ensures
+        eval_comp(CompSpec::CantorPair {
+            left: Box::new(l), right: Box::new(r)
+        }, s) == pair(eval_comp(l, s), eval_comp(r, s)),
+{
+}
+
+///  Helper: eval_comp(Add{l, r}, s) == eval_comp(l, s) + eval_comp(r, s)
+pub proof fn lemma_eval_add(l: CompSpec, r: CompSpec, s: nat)
+    ensures
+        eval_comp(CompSpec::Add {
+            left: Box::new(l), right: Box::new(r)
+        }, s) == eval_comp(l, s) + eval_comp(r, s),
+{
+}
+
+///  Helper: eval_comp(Pred, s) == if s > 0 { s - 1 } else { 0 }
+pub proof fn lemma_eval_pred(s: nat)
+    ensures
+        eval_comp(CompSpec::Pred, s) == (if s > 0 { (s - 1) as nat } else { 0nat }),
+{
+}
+
+///  Helper: eval_comp(Lt{l, r}, s) == if eval_comp(l, s) < eval_comp(r, s) { 1 } else { 0 }
+pub proof fn lemma_eval_lt(l: CompSpec, r: CompSpec, s: nat)
+    ensures
+        eval_comp(CompSpec::Lt {
+            left: Box::new(l), right: Box::new(r)
+        }, s) == (if eval_comp(l, s) < eval_comp(r, s) { 1nat } else { 0nat }),
+{
+}
+
 ///  Helper: for encoded sentences, has_free_var returns 0.
 ///  The stack-based tree traversal correctly finds no free variables.
 proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
@@ -1445,12 +1509,80 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
     ensures
         eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0,
 {
-    //  is_sentence(f) means free_vars(f) == Set::empty()
-    //  So v is not free in f for any v.
-    //  The stack-based has_free_var_comp traversal should return 0.
-    //  This requires showing the BoundedRec traversal correctly mirrors
-    //  the mathematical free_vars computation.
-    assume(eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0);
+    let f_enc = encode(f);
+    let input = pair(f_enc, v);
+    //  Step 1: sentence → v not free
+    lemma_sentence_no_free_var(f, v);
+
+    //  Step 2: reveal has_free_var_comp and separate cs_comp(cs_snd, BoundedRec{...})
+    reveal(has_free_var_comp);
+    let f_enc_expr = cs_fst(CompSpec::Id);
+    let bounded_rec = CompSpec::BoundedRec {
+        count_fn: Box::new(f_enc_expr),
+        base: Box::new(CompSpec::CantorPair {
+            left: Box::new(CompSpec::CantorPair {
+                left: Box::new(CompSpec::Add {
+                    left: Box::new(f_enc_expr),
+                    right: Box::new(cs_const(1)),
+                }),
+                right: Box::new(cs_const(0)),
+            }),
+            right: Box::new(cs_const(0)),
+        }),
+        step: Box::new(has_free_var_step()),
+    };
+    //  has_free_var_comp() = cs_comp(cs_snd(Id), bounded_rec)
+    lemma_eval_comp(cs_snd(CompSpec::Id), bounded_rec, input);
+    //  eval = eval(cs_snd(Id), eval(bounded_rec, input))
+    //       = unpair2(eval(bounded_rec, input))
+
+    //  Step 3: unfold BoundedRec via lemma_eval_bounded_rec
+    lemma_eval_bounded_rec(f_enc_expr, CompSpec::CantorPair {
+        left: Box::new(CompSpec::CantorPair {
+            left: Box::new(CompSpec::Add {
+                left: Box::new(f_enc_expr),
+                right: Box::new(cs_const(1)),
+            }),
+            right: Box::new(cs_const(0)),
+        }),
+        right: Box::new(cs_const(0)),
+    }, has_free_var_step(), input);
+    //  eval(bounded_rec, input) = compspec_iterate(step, count, base_val, input)
+    //  count = eval(f_enc_expr, input) = f_enc
+    //  base_val = pair(pair(f_enc + 1, 0), 0)
+    lemma_eval_fst(CompSpec::Id, input);
+    lemma_unpair1_pair(f_enc, v);
+    assert(eval_comp(f_enc_expr, input) == f_enc);
+    lemma_eval_pair(CompSpec::CantorPair {
+        left: Box::new(CompSpec::Add {
+            left: Box::new(f_enc_expr),
+            right: Box::new(cs_const(1)),
+        }),
+        right: Box::new(cs_const(0)),
+    }, cs_const(0), input);
+    lemma_eval_pair(CompSpec::Add {
+        left: Box::new(f_enc_expr),
+        right: Box::new(cs_const(1)),
+    }, cs_const(0), input);
+    lemma_eval_add(f_enc_expr, cs_const(1), input);
+    let base_val = pair(pair(f_enc + 1, 0nat), 0nat);
+
+    //  Step 4: apply traversal induction
+    lemma_traversal_cost_le_size(f, v);
+    crate::compspec_free_var_induction::lemma_traversal_no_free_var(
+        f, v, 0nat, f_enc, f_enc);
+    //  compspec_iterate(step, f_enc, pair(pair(f_enc+1, 0), 0), pair(f_enc, v))
+    //    == compspec_iterate(step, f_enc - traversal_cost(f, v), pair(0, 0), pair(f_enc, v))
+
+    //  Step 5: remaining iterations on empty stack stay at pair(0, 0)
+    crate::compspec_free_var_induction::lemma_csi_empty_stable(
+        (f_enc - traversal_cost(f, v)) as nat, f_enc, v);
+    //  So: eval(bounded_rec, input) = pair(0, 0)
+    //  compspec_iterate(step, remaining, pair(0, 0), input) == pair(0, 0)
+
+    //  Step 6: extract found flag
+    lemma_eval_snd(CompSpec::Id, pair(0nat, 0nat));
+    lemma_unpair2_pair(0nat, 0nat);
 }
 
 //  lemma_cis_step_preserves is in compspec_sentence_helpers.rs

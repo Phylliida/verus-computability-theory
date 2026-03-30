@@ -52,6 +52,12 @@ pub mod compspec_halts;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_sentence_helpers;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_free_var_helpers;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_free_var_induction;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
