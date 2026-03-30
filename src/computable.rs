@@ -77,7 +77,7 @@ pub open spec fn iterate(
 
 ///  Evaluate a CompSpec on an input.
 pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
-    decreases c,
+    decreases c, 0nat,
 {
     match c {
         CompSpec::Const { value } => value,
@@ -107,24 +107,52 @@ pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
         CompSpec::Lt { left, right } =>
             if eval_comp(*left, input) < eval_comp(*right, input) { 1nat } else { 0nat },
         CompSpec::BoundedRec { count_fn, base, step } => {
-            let n = eval_comp(*count_fn, input);
-            let b = eval_comp(*base, input);
-            let step_fn = |x: nat| eval_comp(*step, x);
-            iterate(step_fn, n, b, input)
+            compspec_iterate(*step, eval_comp(*count_fn, input), eval_comp(*base, input), input)
         },
     }
 }
 
-///  Closure-free iteration wrapper: avoids the Verus spec_fn closure identity problem.
-///  Defined as iterate with an explicit closure over eval_comp.
+///  Closure-free bounded recursion: applies eval_comp(step, ...) count times.
+///  Mutually recursive with eval_comp — step is a proper subterm of the original
+///  BoundedRec, so (step, count) < (BoundedRec{..step..}, 0) lexicographically.
 pub open spec fn compspec_iterate(
     step: CompSpec, count: nat, acc: nat, input: nat,
-) -> nat {
-    iterate(|x: nat| eval_comp(step, x), count, acc, input)
+) -> nat
+    decreases step, count,
+{
+    if count == 0 {
+        acc
+    } else {
+        compspec_iterate(
+            step,
+            (count - 1) as nat,
+            eval_comp(step, pair((count - 1) as nat, pair(acc, input))),
+            input,
+        )
+    }
 }
 
-///  Key bridging lemma: eval_comp(BoundedRec{...}) == compspec_iterate(step, n, b, input).
-///  Proved by induction on the count, step-by-step matching the iterates.
+///  Iterate is extensional: pointwise-equal step functions give equal results.
+pub proof fn lemma_iterate_ext(
+    f1: spec_fn(nat) -> nat,
+    f2: spec_fn(nat) -> nat,
+    count: nat, acc: nat, input: nat,
+)
+    requires
+        forall|x: nat| #[trigger] f1(x) == f2(x),
+    ensures
+        iterate(f1, count, acc, input) == iterate(f2, count, acc, input),
+    decreases count,
+{
+    if count > 0 {
+        let arg = pair((count - 1) as nat, pair(acc, input));
+        assert(f1(arg) == f2(arg));
+        lemma_iterate_ext(f1, f2, (count - 1) as nat, f1(arg), input);
+    }
+}
+
+///  Unfolding lemma: eval_comp(BoundedRec{...}) == compspec_iterate(step, n, b, input).
+///  Trivially true now that eval_comp uses compspec_iterate directly.
 pub proof fn lemma_eval_bounded_rec(
     count_fn: CompSpec, base: CompSpec, step: CompSpec, input: nat,
 )
@@ -143,16 +171,6 @@ pub proof fn lemma_eval_bounded_rec(
             input,
         ),
 {
-    //  eval_comp(BoundedRec{...}) uses iterate(|x| eval_comp(*Box(step), x), n, b, input)
-    //  compspec_iterate uses iterate(|x| eval_comp(step, x), n, b, input)
-    //  These closures differ syntactically but agree pointwise.
-    //  Bridge via lemma_iterate_ext.
-    let n = eval_comp(count_fn, input);
-    let b = eval_comp(base, input);
-    let f_internal: spec_fn(nat) -> nat = |x: nat| eval_comp(*Box::new(step), x);
-    let f_external: spec_fn(nat) -> nat = |x: nat| eval_comp(step, x);
-    assert forall|x: nat| #[trigger] f_internal(x) == f_external(x) by {}
-    lemma_iterate_ext(f_internal, f_external, n, b, input);
 }
 
 //  ============================================================
