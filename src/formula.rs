@@ -665,4 +665,59 @@ pub proof fn lemma_encode_is_pair(f: Formula)
     }
 }
 
+///  Substitution preserves formula tags in the encoding.
+pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
+    ensures unpair1(encode(f)) == unpair1(encode(subst(f, var, t))),
+    decreases f,
+{
+    match f {
+        Formula::Eq { left, right } => {
+            lemma_unpair1_pair(0nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair1_pair(0nat, pair(encode_term(subst_term(left, var, t)),
+                encode_term(subst_term(right, var, t))));
+        },
+        Formula::In { left, right } => {
+            lemma_unpair1_pair(1nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair1_pair(1nat, pair(encode_term(subst_term(left, var, t)),
+                encode_term(subst_term(right, var, t))));
+        },
+        Formula::Not { sub } => {
+            lemma_unpair1_pair(2nat, encode(*sub));
+            lemma_unpair1_pair(2nat, encode(subst(*sub, var, t)));
+        },
+        Formula::And { left, right } => {
+            lemma_unpair1_pair(3nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(3nat, pair(encode(subst(*left, var, t)),
+                encode(subst(*right, var, t))));
+        },
+        Formula::Or { left, right } => {
+            lemma_unpair1_pair(4nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(4nat, pair(encode(subst(*left, var, t)),
+                encode(subst(*right, var, t))));
+        },
+        Formula::Implies { left, right } => {
+            lemma_unpair1_pair(5nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(5nat, pair(encode(subst(*left, var, t)),
+                encode(subst(*right, var, t))));
+        },
+        Formula::Iff { left, right } => {
+            lemma_unpair1_pair(6nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(6nat, pair(encode(subst(*left, var, t)),
+                encode(subst(*right, var, t))));
+        },
+        Formula::Forall { var: v, sub } => {
+            lemma_unpair1_pair(7nat, pair(v, encode(*sub)));
+            if v == var {} else {
+                lemma_unpair1_pair(7nat, pair(v, encode(subst(*sub, var, t))));
+            }
+        },
+        Formula::Exists { var: v, sub } => {
+            lemma_unpair1_pair(8nat, pair(v, encode(*sub)));
+            if v == var {} else {
+                lemma_unpair1_pair(8nat, pair(v, encode(subst(*sub, var, t))));
+            }
+        },
+    }
+}
+
 } //  verus!
