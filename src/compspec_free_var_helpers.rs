@@ -10,7 +10,7 @@ verus! {
 ///  Helper: br_acc() evaluates to the accumulator.
 ///  br_acc() = CantorFst(CantorSnd(Id))
 ///  On input pair(i, pair(acc, rest)): returns acc.
-proof fn lemma_eval_br_acc(i: nat, acc: nat, rest: nat)
+pub proof fn lemma_eval_br_acc(i: nat, acc: nat, rest: nat)
     ensures
         eval_comp(br_acc(), pair(i, pair(acc, rest))) == acc,
 {
