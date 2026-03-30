@@ -67,6 +67,9 @@ pub mod compspec_axiom_eval;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_logic_axiom_helpers;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_axiom_correct;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
