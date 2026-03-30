@@ -76,6 +76,9 @@ pub mod compspec_subst_helpers;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_subst_step_helpers;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_induction;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
