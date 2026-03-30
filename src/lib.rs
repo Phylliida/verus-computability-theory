@@ -73,6 +73,9 @@ pub mod compspec_axiom_correct;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_subst_helpers;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_step_helpers;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
