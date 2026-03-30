@@ -210,6 +210,134 @@ pub proof fn lemma_traversal_cost_pos(f: Formula, v: nat)
     }
 }
 
+///  For sentences: encode(f) >= traversal_cost(f, v).
+///  Sentences can't be atomic Eq/In (they have free vars), so tag >= 2.
+///  Uses pair(a, b) >= a + b to show encode grows at least as fast as cost.
+pub proof fn lemma_sentence_encode_ge_cost(f: Formula, v: nat)
+    requires
+        is_sentence(f),
+    ensures
+        encode(f) >= traversal_cost(f, v),
+{
+    //  Sentences can't be Eq or In (those have non-empty free_vars).
+    //  So encode(f) != 0 (only Eq(Var(0),Var(0)) has encode 0, and it's not a sentence).
+    lemma_sentence_no_free_var(f, v);
+    //  Sentences can't be Eq or In — those have non-empty free_vars.
+    //  So tag >= 2, encode >= 2 > 0.
+    lemma_encode_is_pair(f);
+    lemma_pair_ge_sum(formula_tag(f), formula_content(f));
+    assert(formula_tag(f) >= 2nat) by {
+        match f {
+            Formula::Eq { left, right } => {
+                //  Contradiction: free_vars non-empty but is_sentence requires empty
+                assert(free_vars(f).contains(encode_term(left)));
+            },
+            Formula::In { left, right } => {
+                assert(free_vars(f).contains(encode_term(left)));
+            },
+            _ => {},
+        }
+    }
+    lemma_encode_ge_cost_inner(f, v);
+}
+
+///  Inner helper: encode(f) >= traversal_cost(f, v) when !has_free_var(f, v)
+///  and f is not Eq(Var(0), Var(0)).
+///  For the Eq(Var(0), Var(0)) edge case, encode = 0 < 1 = cost.
+///  But this formula is never a sentence.
+proof fn lemma_encode_ge_cost_inner(f: Formula, v: nat)
+    requires
+        !has_free_var(f, v),
+        //  Exclude the one edge case: Eq(Var(0), Var(0))
+        !(encode(f) == 0nat),
+    ensures
+        encode(f) >= traversal_cost(f, v),
+    decreases f,
+{
+    match f {
+        Formula::Eq { left, right } => {
+            //  encode = pair(0, pair(a, b)) >= 1 (since encode > 0 by precondition)
+            //  cost = 1. So encode >= 1 = cost. ✓
+        },
+        Formula::In { left, right } => {
+            //  encode = pair(1, pair(a, b)) >= 1. cost = 1. ✓
+            lemma_pair_gt_components(1nat, pair(encode_term(left), encode_term(right)));
+        },
+        Formula::Not { sub } => {
+            lemma_has_free_var_not(*sub, v);
+            //  encode(f) = pair(2, encode(sub)). cost = 1 + cost(sub).
+            //  pair(2, x) >= 2 + x (from pair_ge_sum).
+            //  If encode(sub) > 0: by IH, encode(sub) >= cost(sub).
+            //    So encode(f) >= 2 + encode(sub) >= 2 + cost(sub) > 1 + cost(sub) = cost(f). ✓
+            //  If encode(sub) == 0: encode(f) = pair(2, 0) = 5. cost(sub) = 1. cost(f) = 2. 5 >= 2. ✓
+            lemma_pair_ge_sum(2nat, encode(*sub));
+            if encode(*sub) > 0 {
+                lemma_encode_ge_cost_inner(*sub, v);
+            }
+        },
+        Formula::And { left, right } => {
+            lemma_has_free_var_binary(*left, *right, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(3nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) > 0 { lemma_encode_ge_cost_inner(*left, v); }
+            if encode(*right) > 0 { lemma_encode_ge_cost_inner(*right, v); }
+            lemma_traversal_cost_pos(*left, v);
+            lemma_traversal_cost_pos(*right, v);
+        },
+        Formula::Or { left, right } => {
+            lemma_has_free_var_binary(*left, *right, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(4nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) > 0 { lemma_encode_ge_cost_inner(*left, v); }
+            if encode(*right) > 0 { lemma_encode_ge_cost_inner(*right, v); }
+            lemma_traversal_cost_pos(*left, v);
+            lemma_traversal_cost_pos(*right, v);
+        },
+        Formula::Implies { left, right } => {
+            lemma_has_free_var_binary(*left, *right, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(5nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) > 0 { lemma_encode_ge_cost_inner(*left, v); }
+            if encode(*right) > 0 { lemma_encode_ge_cost_inner(*right, v); }
+            lemma_traversal_cost_pos(*left, v);
+            lemma_traversal_cost_pos(*right, v);
+        },
+        Formula::Iff { left, right } => {
+            lemma_has_free_var_binary(*left, *right, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(6nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) > 0 { lemma_encode_ge_cost_inner(*left, v); }
+            if encode(*right) > 0 { lemma_encode_ge_cost_inner(*right, v); }
+            lemma_traversal_cost_pos(*left, v);
+            lemma_traversal_cost_pos(*right, v);
+        },
+        Formula::Forall { var, sub } => {
+            lemma_has_free_var_quantifier(var, *sub, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(7nat, pair(var, encode(*sub)));
+            lemma_pair_ge_sum(var, encode(*sub));
+            if var != v {
+                if encode(*sub) > 0 { lemma_encode_ge_cost_inner(*sub, v); }
+                lemma_traversal_cost_pos(*sub, v);
+            }
+        },
+        Formula::Exists { var, sub } => {
+            lemma_has_free_var_quantifier(var, *sub, v);
+            lemma_encode_is_pair(f);
+            lemma_pair_ge_sum(8nat, pair(var, encode(*sub)));
+            lemma_pair_ge_sum(var, encode(*sub));
+            if var != v {
+                if encode(*sub) > 0 { lemma_encode_ge_cost_inner(*sub, v); }
+                lemma_traversal_cost_pos(*sub, v);
+            }
+        },
+    }
+}
+
 ///  has_free_var for atomic formulas (Eq, In).
 pub proof fn lemma_has_free_var_atomic(left: Term, right: Term, v: nat)
     ensures
