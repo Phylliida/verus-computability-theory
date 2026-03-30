@@ -1509,12 +1509,19 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
     ensures
         eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0,
 {
+    //  Delegate to isolated module to avoid trigger pollution
+    crate::compspec_free_var_induction::lemma_has_free_var_sentence_core(f, v);
+}
+
+//  DEAD CODE — replaced by lemma_has_free_var_sentence_core in compspec_free_var_induction.rs.
+//  Kept temporarily to avoid changing line numbers of downstream code.
+proof fn lemma_has_free_var_sentence_OLD(f: Formula, v: nat)
+    requires false,
+{
     let f_enc = encode(f);
     let input = pair(f_enc, v);
-    //  Step 1: sentence → v not free
     lemma_sentence_no_free_var(f, v);
 
-    //  Step 2: reveal has_free_var_comp and separate cs_comp(cs_snd, BoundedRec{...})
     reveal(has_free_var_comp);
     let f_enc_expr = cs_fst(CompSpec::Id);
     let bounded_rec = CompSpec::BoundedRec {
