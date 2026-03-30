@@ -91,7 +91,7 @@ pub proof fn lemma_check_axiom_eq_subst_right_correct(f: Formula)
                 (Formula::Eq { left: xt, right: yt }, Formula::Implies { left: s1, right: s2 }) => {
                     eq_subst_right_inner(f, xt, yt, *s1, *s2);
                 },
-                _ => {},
+                (_, _) => {},
             }
         },
         _ => {},
@@ -108,6 +108,68 @@ pub proof fn lemma_check_axiom_vacuous_quant_correct(f: Formula)
             match *right {
                 Formula::Forall { var, sub } => {
                     vacuous_quant_compose(f, *left, var);
+                },
+                _ => {},
+            }
+        },
+        _ => {},
+    }
+}
+
+pub proof fn lemma_check_axiom_iff_intro_correct(f: Formula)
+    requires is_axiom_iff_intro(f),
+    ensures eval_comp(check_axiom_iff_intro(), encode(f)) != 0,
+{
+    match f {
+        Formula::Implies { left, right } => {
+            match *left {
+                Formula::Implies { left: phi_b, right: psi_b } => {
+                    iff_intro_compose(f, *phi_b, *psi_b);
+                },
+                _ => {},
+            }
+        },
+        _ => {},
+    }
+}
+
+pub proof fn lemma_check_axiom_hyp_syllogism_correct(f: Formula)
+    requires is_axiom_hyp_syllogism(f),
+    ensures eval_comp(check_axiom_hyp_syllogism(), encode(f)) != 0,
+{
+    match f {
+        Formula::Implies { left, right } => {
+            match (*left, *right) {
+                (Formula::Implies { left: phi_b, right: psi_b },
+                 Formula::Implies { left: m_b, right: n_b }) => {
+                    match *m_b {
+                        Formula::Implies { left: psi2_b, right: chi_b } => {
+                            hyp_syl_compose(f, *phi_b, *psi_b, *chi_b);
+                        },
+                        _ => {},
+                    }
+                },
+                (_, _) => {},
+            }
+        },
+        _ => {},
+    }
+}
+
+pub proof fn lemma_check_axiom_quantifier_dist_correct(f: Formula)
+    requires is_axiom_quantifier_dist(f),
+    ensures eval_comp(check_axiom_quantifier_dist(), encode(f)) != 0,
+{
+    match f {
+        Formula::Implies { left, right } => {
+            match *left {
+                Formula::Forall { var, sub } => {
+                    match *sub {
+                        Formula::Implies { left: phi_b, right: psi_b } => {
+                            quant_dist_compose(f, *phi_b, *psi_b, var);
+                        },
+                        _ => {},
+                    }
                 },
                 _ => {},
             }
