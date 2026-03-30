@@ -583,4 +583,272 @@ pub proof fn lemma_subst_process_pair_unary(
     }
 }
 
+///  Dispatch: for tags >= 3, process_pair routes to check_subst_compound.
+proof fn lemma_subst_dispatch_compound(
+    i: nat, phi_node: nat, result_node: nat, rest: nat,
+    valid: nat, t_enc: nat, t_set: nat,
+    phi_enc: nat, result_enc: nat, var: nat,
+)
+    requires
+        valid > 0,
+        unpair1(phi_node) >= 3,
+    ensures ({
+        let entry = pair(phi_node, result_node);
+        let stack = pair(entry + 1, rest);
+        let acc = pair(stack, pair(valid, pair(t_enc, t_set)));
+        let input = pair(i, pair(acc, pair(phi_enc, pair(result_enc, var))));
+        eval_comp(check_subst_process_pair(), input)
+            == eval_comp(check_subst_compound(), input)
+    }),
+{
+    hide(eval_comp);
+    let entry = pair(phi_node, result_node);
+    let stack = pair(entry + 1, rest);
+    let acc = pair(stack, pair(valid, pair(t_enc, t_set)));
+    let orig = pair(phi_enc, pair(result_enc, var));
+    let input = pair(i, pair(acc, orig));
+    let tag = unpair1(phi_node);
+
+    assert(eval_comp(br_acc(), input) == acc) by {
+        reveal(eval_comp); lemma_eval_br_acc(i, acc, orig);
+    }
+    assert(eval_comp(cs_fst(br_acc()), input) == stack) by {
+        reveal(eval_comp);
+        lemma_eval_fst(br_acc(), input);
+        lemma_unpair1_pair(stack, pair(valid, pair(t_enc, t_set)));
+    }
+    let entry_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
+    assert(eval_comp(entry_cs, input) == entry) by {
+        reveal(eval_comp);
+        lemma_eval_fst(cs_fst(br_acc()), input);
+        lemma_unpair1_pair(entry + 1, rest);
+        lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), input);
+        lemma_eval_pred(entry + 1);
+    }
+    assert(eval_comp(cs_fst(entry_cs), input) == phi_node) by {
+        reveal(eval_comp); lemma_eval_fst(entry_cs, input); lemma_unpair1_pair(phi_node, result_node);
+    }
+    let phi_tag_cs = cs_fst(cs_fst(entry_cs));
+    assert(eval_comp(phi_tag_cs, input) == tag) by {
+        reveal(eval_comp); lemma_eval_fst(cs_fst(entry_cs), input);
+    }
+    //  tag >= 3: all three IfZero take else
+    let pred_tag = cs_comp(CompSpec::Pred, phi_tag_cs);
+    let pred_pred_tag = cs_comp(CompSpec::Pred, pred_tag);
+    assert(eval_comp(pred_tag, input) == (tag - 1) as nat) by {
+        reveal(eval_comp);
+        lemma_eval_comp(CompSpec::Pred, phi_tag_cs, input);
+        lemma_eval_pred(tag);
+    }
+    assert(eval_comp(pred_pred_tag, input) == (tag - 2) as nat) by {
+        reveal(eval_comp);
+        lemma_eval_comp(CompSpec::Pred, pred_tag, input);
+        lemma_eval_pred((tag - 1) as nat);
+    }
+    assert(eval_comp(check_subst_process_pair(), input)
+        == eval_comp(check_subst_compound(), input)) by {
+        reveal(eval_comp);
+        //  Inner: IfZero(pred_pred_tag >= 1) → else → compound
+        lemma_eval_ifzero_else(pred_pred_tag,
+            check_subst_unary(), check_subst_compound(), input);
+        //  Middle: IfZero(pred_tag >= 2) → else
+        lemma_eval_ifzero_else(pred_tag,
+            check_subst_atomic_terms(),
+            CompSpec::IfZero {
+                cond: Box::new(pred_pred_tag),
+                then_br: Box::new(check_subst_unary()),
+                else_br: Box::new(check_subst_compound()),
+            }, input);
+        //  Outer: IfZero(tag >= 3) → else
+        lemma_eval_ifzero_else(phi_tag_cs,
+            check_subst_atomic_terms(),
+            CompSpec::IfZero {
+                cond: Box::new(pred_tag),
+                then_br: Box::new(check_subst_atomic_terms()),
+                else_br: Box::new(CompSpec::IfZero {
+                    cond: Box::new(pred_pred_tag),
+                    then_br: Box::new(check_subst_unary()),
+                    else_br: Box::new(check_subst_compound()),
+                }),
+            }, input);
+    }
+}
+
+///  Binary compound (tags 3-6): push two sub-pairs.
+pub proof fn lemma_subst_process_pair_binary(
+    i: nat, phi_node: nat, result_node: nat, rest: nat,
+    valid: nat, t_enc: nat, t_set: nat,
+    phi_enc: nat, result_enc: nat, var: nat,
+)
+    requires
+        valid > 0,
+        unpair1(phi_node) >= 3,
+        unpair1(phi_node) <= 6,
+        unpair1(phi_node) == unpair1(result_node),
+    ensures ({
+        let entry = pair(phi_node, result_node);
+        let stack = pair(entry + 1, rest);
+        let acc = pair(stack, pair(valid, pair(t_enc, t_set)));
+        let input = pair(i, pair(acc, pair(phi_enc, pair(result_enc, var))));
+        let phi_c = unpair2(phi_node);
+        let result_c = unpair2(result_node);
+        let entry_l = pair(unpair1(phi_c), unpair1(result_c));
+        let entry_r = pair(unpair2(phi_c), unpair2(result_c));
+        let new_stack = pair(entry_l + 1, pair(entry_r + 1, rest));
+        eval_comp(check_subst_process_pair(), input)
+            == pair(new_stack, pair(1nat, pair(t_enc, t_set)))
+    }),
+{
+    hide(eval_comp);
+    let entry = pair(phi_node, result_node);
+    let stack = pair(entry + 1, rest);
+    let acc = pair(stack, pair(valid, pair(t_enc, t_set)));
+    let orig = pair(phi_enc, pair(result_enc, var));
+    let input = pair(i, pair(acc, orig));
+    let tag = unpair1(phi_node);
+
+    //  Dispatch to compound
+    lemma_subst_dispatch_compound(i, phi_node, result_node, rest,
+        valid, t_enc, t_set, phi_enc, result_enc, var);
+
+    //  Now show compound evaluates to the binary result
+    //  First: extract entry, phi/result content
+    assert(eval_comp(br_acc(), input) == acc) by {
+        reveal(eval_comp); lemma_eval_br_acc(i, acc, orig);
+    }
+    assert(eval_comp(cs_fst(br_acc()), input) == stack) by {
+        reveal(eval_comp);
+        lemma_eval_fst(br_acc(), input);
+        lemma_unpair1_pair(stack, pair(valid, pair(t_enc, t_set)));
+    }
+    let entry_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
+    assert(eval_comp(entry_cs, input) == entry) by {
+        reveal(eval_comp);
+        lemma_eval_fst(cs_fst(br_acc()), input);
+        lemma_unpair1_pair(entry + 1, rest);
+        lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), input);
+        lemma_eval_pred(entry + 1);
+    }
+    assert(eval_comp(cs_snd(cs_fst(br_acc())), input) == rest) by {
+        reveal(eval_comp);
+        lemma_eval_snd(cs_fst(br_acc()), input);
+        lemma_unpair2_pair(entry + 1, rest);
+    }
+    assert(eval_comp(cs_fst(entry_cs), input) == phi_node) by {
+        reveal(eval_comp); lemma_eval_fst(entry_cs, input); lemma_unpair1_pair(phi_node, result_node);
+    }
+    assert(eval_comp(cs_snd(entry_cs), input) == result_node) by {
+        reveal(eval_comp); lemma_eval_snd(entry_cs, input); lemma_unpair2_pair(phi_node, result_node);
+    }
+
+    //  Tags and content
+    let phi_tag_cs = cs_fst(cs_fst(entry_cs));
+    let result_tag_cs = cs_fst(cs_snd(entry_cs));
+    let phi_content_cs = cs_snd(cs_fst(entry_cs));
+    let result_content_cs = cs_snd(cs_snd(entry_cs));
+    assert(eval_comp(phi_tag_cs, input) == tag) by {
+        reveal(eval_comp); lemma_eval_fst(cs_fst(entry_cs), input);
+    }
+    assert(eval_comp(result_tag_cs, input) == tag) by {
+        reveal(eval_comp);
+        lemma_eval_snd(entry_cs, input);
+        lemma_eval_fst(cs_snd(entry_cs), input);
+    }
+    assert(eval_comp(phi_content_cs, input) == unpair2(phi_node)) by {
+        reveal(eval_comp); lemma_eval_snd(cs_fst(entry_cs), input);
+    }
+    assert(eval_comp(result_content_cs, input) == unpair2(result_node)) by {
+        reveal(eval_comp);
+        lemma_eval_snd(entry_cs, input);
+        lemma_eval_snd(cs_snd(entry_cs), input);
+    }
+
+    //  is_quantifier = cs_lt(6, tag): tag <= 6 → 0
+    let is_quant = cs_lt(cs_const(6), phi_tag_cs);
+    assert(eval_comp(is_quant, input) == 0) by {
+        reveal(eval_comp); lemma_eval_lt(cs_const(6), phi_tag_cs, input);
+    }
+
+    //  tags_match = cs_eq(phi_tag, result_tag) = 1
+    let tags_match = cs_eq(phi_tag_cs, result_tag_cs);
+    assert(eval_comp(tags_match, input) == 1) by {
+        reveal(eval_comp); lemma_eval_eq(phi_tag_cs, result_tag_cs, input);
+    }
+
+    //  Content sub-parts
+    let phi_c = unpair2(phi_node);
+    let result_c = unpair2(result_node);
+    assert(eval_comp(cs_fst(phi_content_cs), input) == unpair1(phi_c)) by {
+        reveal(eval_comp); lemma_eval_fst(phi_content_cs, input);
+    }
+    assert(eval_comp(cs_fst(result_content_cs), input) == unpair1(result_c)) by {
+        reveal(eval_comp); lemma_eval_fst(result_content_cs, input);
+    }
+    assert(eval_comp(cs_snd(phi_content_cs), input) == unpair2(phi_c)) by {
+        reveal(eval_comp); lemma_eval_snd(phi_content_cs, input);
+    }
+    assert(eval_comp(cs_snd(result_content_cs), input) == unpair2(result_c)) by {
+        reveal(eval_comp); lemma_eval_snd(result_content_cs, input);
+    }
+
+    //  t_enc, t_set
+    let t_enc_cs = cs_fst(cs_snd(cs_snd(br_acc())));
+    let t_set_cs = cs_snd(cs_snd(cs_snd(br_acc())));
+    assert(eval_comp(t_enc_cs, input) == t_enc && eval_comp(t_set_cs, input) == t_set) by {
+        reveal(eval_comp);
+        lemma_eval_snd(br_acc(), input);
+        lemma_unpair2_pair(stack, pair(valid, pair(t_enc, t_set)));
+        lemma_eval_snd(cs_snd(br_acc()), input);
+        lemma_unpair2_pair(valid, pair(t_enc, t_set));
+        lemma_eval_fst(cs_snd(cs_snd(br_acc())), input);
+        lemma_unpair1_pair(t_enc, t_set);
+        lemma_eval_snd(cs_snd(cs_snd(br_acc())), input);
+        lemma_unpair2_pair(t_enc, t_set);
+    }
+
+    //  Build result: binary push two sub-pairs
+    let rest_cs = cs_snd(cs_fst(br_acc()));
+    let left_pair_cs = cs_pair(cs_fst(phi_content_cs), cs_fst(result_content_cs));
+    let right_pair_cs = cs_pair(cs_snd(phi_content_cs), cs_snd(result_content_cs));
+
+    //  IfZero(is_quant=0) → then branch (binary)
+    assert(eval_comp(check_subst_compound(), input) == ({
+        let entry_l = pair(unpair1(phi_c), unpair1(result_c));
+        let entry_r = pair(unpair2(phi_c), unpair2(result_c));
+        let new_stack = pair(entry_l + 1, pair(entry_r + 1, rest));
+        pair(new_stack, pair(1nat, pair(t_enc, t_set)))
+    })) by {
+        reveal(eval_comp);
+        lemma_eval_pair(cs_fst(phi_content_cs), cs_fst(result_content_cs), input);
+        lemma_eval_add(left_pair_cs, cs_const(1), input);
+        lemma_eval_pair(cs_snd(phi_content_cs), cs_snd(result_content_cs), input);
+        lemma_eval_add(right_pair_cs, cs_const(1), input);
+        let lp1 = CompSpec::Add { left: Box::new(left_pair_cs), right: Box::new(cs_const(1)) };
+        let rp1 = CompSpec::Add { left: Box::new(right_pair_cs), right: Box::new(cs_const(1)) };
+        lemma_eval_pair(rp1, rest_cs, input);
+        lemma_eval_pair(lp1, cs_pair(rp1, rest_cs), input);
+        lemma_eval_pair(t_enc_cs, t_set_cs, input);
+        lemma_eval_pair(tags_match, cs_pair(t_enc_cs, t_set_cs), input);
+        let new_stack_cs = cs_pair(lp1, cs_pair(rp1, rest_cs));
+        lemma_eval_pair(new_stack_cs, cs_pair(tags_match, cs_pair(t_enc_cs, t_set_cs)), input);
+        //  IfZero(is_quant=0) → then branch
+        let then_br = cs_pair(new_stack_cs, cs_pair(tags_match, cs_pair(t_enc_cs, t_set_cs)));
+        lemma_eval_ifzero_then(is_quant, then_br,
+            CompSpec::IfZero {
+                cond: Box::new(cs_eq(cs_fst(phi_content_cs), cs_snd(cs_snd(cs_snd(CompSpec::Id))))),
+                then_br: Box::new(cs_pair(
+                    cs_pair(rp1, rest_cs),
+                    cs_pair(cs_and(tags_match, cs_eq(cs_fst(phi_content_cs), cs_fst(result_content_cs))),
+                        cs_pair(t_enc_cs, t_set_cs)),
+                )),
+                else_br: Box::new(cs_pair(
+                    rest_cs,
+                    cs_pair(cs_and(tags_match, cs_eq(cs_fst(entry_cs), cs_snd(entry_cs))),
+                        cs_pair(t_enc_cs, t_set_cs)),
+                )),
+            },
+            input);
+    }
+}
+
 } //  verus!
