@@ -692,7 +692,9 @@ pub open spec fn check_subst_compound() -> CompSpec {
     let stack = cs_fst(acc);
     let t_enc = cs_fst(cs_snd(cs_snd(acc)));
     let t_set = cs_snd(cs_snd(cs_snd(acc)));
-    let var = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
+    //  Extract var from BoundedRec input: pair(iter, pair(acc, pair(phi_enc, pair(result_enc, var))))
+    //  Need 4 snds to reach var (was 3 snds = bug, gave pair(result_enc, var))
+    let var = cs_snd(cs_snd(cs_snd(cs_snd(CompSpec::Id))));
     let entry = cs_comp(CompSpec::Pred, cs_fst(stack));
     let rest = cs_snd(stack);
     let phi_node = cs_fst(entry);
