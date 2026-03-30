@@ -80,6 +80,9 @@ pub mod compspec_subst_step_helpers;
 pub mod compspec_subst_induction_steps;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_dispatchers;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction;
 
 

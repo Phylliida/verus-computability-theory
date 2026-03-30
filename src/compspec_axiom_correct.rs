@@ -178,4 +178,30 @@ pub proof fn lemma_check_axiom_quantifier_dist_correct(f: Formula)
     }
 }
 
+pub proof fn lemma_check_axiom_universal_inst_correct(f: Formula)
+    requires is_axiom_universal_inst(f),
+    ensures eval_comp(check_axiom_universal_inst(), encode(f)) != 0,
+{
+    //  is_axiom_universal_inst: exists|phi, var, t| f == mk_implies(mk_forall(var, phi), subst(phi, var, t))
+    match f {
+        Formula::Implies { left, right } => {
+            match *left {
+                Formula::Forall { var: v, sub } => {
+                    //  phi = *sub, var = v, t is implicit (subst(phi, v, t) = *right)
+                    //  Need: f == mk_implies(mk_forall(v, *sub), subst(*sub, v, t)) for some t
+                    //  From is_axiom_universal_inst, we know such t exists
+                    //  And *right == subst(*sub, v, t)
+                    //  Call the compose helper
+                    //  From is_axiom_universal_inst: exists t such that *right == subst(*sub, v, t)
+                    let t_wit: Term = choose|t_wit: Term|
+                        f == mk_implies(mk_forall(v, *sub), subst(*sub, v, t_wit));
+                    universal_inst_compose(f, *sub, v, t_wit);
+                },
+                _ => {},
+            }
+        },
+        _ => {},
+    }
+}
+
 } //  verus!

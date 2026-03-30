@@ -4,6 +4,7 @@ use crate::computable::*;
 use crate::formula::*;
 use crate::compspec_halts::*;
 use crate::compspec_free_var_induction::*;
+use crate::compspec_subst_helpers::*;
 use crate::proof_system::*;
 
 verus! {
@@ -930,6 +931,100 @@ pub proof fn quant_dist_compose(f: Formula, phi: Formula, psi: Formula, var: nat
     lemma_eval_cs_and(c3, cs_and(c4, cs_and(c5, c6)), x);
     lemma_eval_cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, c6))), x);
     lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, c6)))), x);
+}
+
+//  ============================================================
+//  Universal instantiation: (∀x.φ) → φ[x/t]
+//  ============================================================
+proof fn universal_inst_tags(f: Formula, phi: Formula, var: nat, t: Term)
+    requires f == mk_implies(mk_forall(var, phi), subst(phi, var, t)),
+    ensures ({
+        let x = encode(f);
+        let left = cs_fst(cs_snd(CompSpec::Id));
+        eval_comp(cs_fst(CompSpec::Id), x) == 5 &&
+        eval_comp(cs_fst(left), x) == 7
+    }),
+{
+    let x = encode(f);
+    let left_enc = encode(mk_forall(var, phi));
+    let right_enc = encode(subst(phi, var, t));
+    lemma_encode_implies(mk_forall(var, phi), subst(phi, var, t));
+    lemma_encode_forall(var, phi);
+    lemma_eval_fst(CompSpec::Id, x);
+    lemma_unpair1_pair(5nat, pair(left_enc, right_enc));
+    lemma_eval_snd(CompSpec::Id, x);
+    lemma_unpair2_pair(5nat, pair(left_enc, right_enc));
+    lemma_eval_fst(cs_snd(CompSpec::Id), x);
+    lemma_unpair1_pair(left_enc, right_enc);
+    let left = cs_fst(cs_snd(CompSpec::Id));
+    lemma_eval_fst(left, x);
+    lemma_unpair1_pair(7nat, pair(var, encode(phi)));
+}
+
+proof fn universal_inst_subst_check(f: Formula, phi: Formula, var: nat, t: Term)
+    requires f == mk_implies(mk_forall(var, phi), subst(phi, var, t)),
+    ensures ({
+        let x = encode(f);
+        let left = cs_fst(cs_snd(CompSpec::Id));
+        let result = cs_snd(cs_snd(CompSpec::Id));
+        let v_expr = cs_fst(cs_snd(left));
+        let phi_inner = cs_snd(cs_snd(left));
+        eval_comp(cs_comp(check_subst_comp(),
+            cs_pair(phi_inner, cs_pair(result, v_expr))), x) != 0
+    }),
+{
+    let x = encode(f);
+    let left_enc = encode(mk_forall(var, phi));
+    let right_enc = encode(subst(phi, var, t));
+    lemma_encode_implies(mk_forall(var, phi), subst(phi, var, t));
+    lemma_encode_forall(var, phi);
+    let left = cs_fst(cs_snd(CompSpec::Id));
+    let result = cs_snd(cs_snd(CompSpec::Id));
+    //  phi_inner = snd(snd(left)) = snd(snd(fst(snd(Id))))
+    //  Evaluates to: unpair2(unpair2(left_enc)) = unpair2(pair(var, encode(phi))) = encode(phi)
+    lemma_eval_snd(CompSpec::Id, x);
+    lemma_unpair2_pair(5nat, pair(left_enc, right_enc));
+    lemma_eval_fst(cs_snd(CompSpec::Id), x);
+    lemma_unpair1_pair(left_enc, right_enc);
+    lemma_eval_snd(cs_snd(CompSpec::Id), x);
+    lemma_unpair2_pair(left_enc, right_enc);
+    lemma_eval_snd(left, x);
+    lemma_unpair2_pair(7nat, pair(var, encode(phi)));
+    lemma_eval_fst(cs_snd(left), x);
+    lemma_unpair1_pair(var, encode(phi));
+    lemma_eval_snd(cs_snd(left), x);
+    lemma_unpair2_pair(var, encode(phi));
+    let phi_inner = cs_snd(cs_snd(left));
+    let v_expr = cs_fst(cs_snd(left));
+    //  phi_inner evaluates to encode(phi), v_expr to var, result to right_enc
+    lemma_eval_pair(result, v_expr, x);
+    lemma_eval_pair(phi_inner, cs_pair(result, v_expr), x);
+    lemma_eval_comp(check_subst_comp(), cs_pair(phi_inner, cs_pair(result, v_expr)), x);
+    //  eval_comp(check_subst_comp(), pair(encode(phi), pair(encode(subst(phi,var,t)), var))) != 0
+    crate::compspec_subst_helpers::lemma_check_subst_comp_backward(phi, var, t);
+}
+
+pub proof fn universal_inst_compose(f: Formula, phi: Formula, var: nat, t: Term)
+    requires f == mk_implies(mk_forall(var, phi), subst(phi, var, t)),
+    ensures eval_comp(check_axiom_universal_inst(), encode(f)) != 0,
+{
+    let x = encode(f);
+    let left = cs_fst(cs_snd(CompSpec::Id));
+    let result = cs_snd(cs_snd(CompSpec::Id));
+    let v_expr = cs_fst(cs_snd(left));
+    let phi_inner = cs_snd(cs_snd(left));
+
+    universal_inst_tags(f, phi, var, t);
+    universal_inst_subst_check(f, phi, var, t);
+
+    let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+    let c2 = cs_eq(cs_fst(left), cs_const(7));
+    let subst_check = cs_comp(check_subst_comp(), cs_pair(phi_inner, cs_pair(result, v_expr)));
+
+    lemma_eval_eq(cs_fst(CompSpec::Id), cs_const(5), x);
+    lemma_eval_eq(cs_fst(left), cs_const(7), x);
+    lemma_eval_cs_and(c2, subst_check, x);
+    lemma_eval_cs_and(c1, cs_and(c2, subst_check), x);
 }
 
 } //  verus!

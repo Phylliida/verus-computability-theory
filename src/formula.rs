@@ -240,6 +240,89 @@ pub proof fn lemma_subst_cost_le_formula_size(f: Formula, var: nat)
     }
 }
 
+///  encode(f) >= subst_traversal_cost(f, var) when encode(f) > 0.
+///  Proof: pair(tag, content) >= tag + content >= subst_cost by induction.
+///  Edge case: Eq(Var(0), Var(0)) has encode=0, cost=1 — excluded by precondition.
+pub proof fn lemma_encode_ge_subst_cost(f: Formula, var: nat)
+    requires encode(f) != 0,
+    ensures encode(f) >= subst_traversal_cost(f, var),
+    decreases f,
+{
+    lemma_encode_is_pair(f);
+    match f {
+        Formula::Eq { .. } => {
+            //  encode(f) >= 1 (since encode(f) != 0) and subst_cost = 1
+            lemma_subst_traversal_cost_pos(f, var);
+        },
+        Formula::In { left, right } => {
+            //  encode = pair(1, ...) >= 1 = subst_cost
+            lemma_pair_ge_sum(1nat, pair(encode_term(left), encode_term(right)));
+        },
+        Formula::Not { sub } => {
+            //  encode = pair(2, encode(sub)) >= 2 + encode(sub)
+            //  subst_cost = 1 + subst_cost(sub) <= 1 + encode(sub) (by induction or edge case)
+            lemma_pair_ge_sum(2nat, encode(*sub));
+            if encode(*sub) != 0 {
+                lemma_encode_ge_subst_cost(*sub, var);
+            } else {
+                //  sub = Eq(Var(0), Var(0)), subst_cost(sub) = 1, encode(sub) = 0
+                //  2 + 0 = 2 >= 1 + 1 = subst_cost(f)
+            }
+        },
+        Formula::And { left, right } => {
+            lemma_pair_ge_sum(3nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_subst_cost(*left, var); }
+            else { lemma_subst_traversal_cost_pos(*left, var); }
+            if encode(*right) != 0 { lemma_encode_ge_subst_cost(*right, var); }
+            else { lemma_subst_traversal_cost_pos(*right, var); }
+        },
+        Formula::Or { left, right } => {
+            lemma_pair_ge_sum(4nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_subst_cost(*left, var); }
+            else { lemma_subst_traversal_cost_pos(*left, var); }
+            if encode(*right) != 0 { lemma_encode_ge_subst_cost(*right, var); }
+            else { lemma_subst_traversal_cost_pos(*right, var); }
+        },
+        Formula::Implies { left, right } => {
+            lemma_pair_ge_sum(5nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_subst_cost(*left, var); }
+            else { lemma_subst_traversal_cost_pos(*left, var); }
+            if encode(*right) != 0 { lemma_encode_ge_subst_cost(*right, var); }
+            else { lemma_subst_traversal_cost_pos(*right, var); }
+        },
+        Formula::Iff { left, right } => {
+            lemma_pair_ge_sum(6nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_subst_cost(*left, var); }
+            else { lemma_subst_traversal_cost_pos(*left, var); }
+            if encode(*right) != 0 { lemma_encode_ge_subst_cost(*right, var); }
+            else { lemma_subst_traversal_cost_pos(*right, var); }
+        },
+        Formula::Forall { var: v, sub } => {
+            lemma_pair_ge_sum(7nat, pair(v, encode(*sub)));
+            lemma_pair_ge_sum(v, encode(*sub));
+            if v == var {
+                //  subst_cost = 1, encode >= 7 + v + encode(sub) >= 7 >= 1
+            } else {
+                if encode(*sub) != 0 { lemma_encode_ge_subst_cost(*sub, var); }
+                else { lemma_subst_traversal_cost_pos(*sub, var); }
+            }
+        },
+        Formula::Exists { var: v, sub } => {
+            lemma_pair_ge_sum(8nat, pair(v, encode(*sub)));
+            lemma_pair_ge_sum(v, encode(*sub));
+            if v == var {
+            } else {
+                if encode(*sub) != 0 { lemma_encode_ge_subst_cost(*sub, var); }
+                else { lemma_subst_traversal_cost_pos(*sub, var); }
+            }
+        },
+    }
+}
+
 ///  Traversal cost is bounded by formula size.
 pub proof fn lemma_traversal_cost_le_size(f: Formula, v: nat)
     ensures
