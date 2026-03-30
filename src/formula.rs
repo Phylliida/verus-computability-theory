@@ -665,10 +665,18 @@ pub proof fn lemma_encode_is_pair(f: Formula)
     }
 }
 
-///  Substitution preserves formula tags in the encoding.
-pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
+proof fn lemma_subst_tag_binary(tag: nat, el: nat, er: nat, sl: nat, sr: nat)
+    requires tag >= 3 && tag <= 6,
+    ensures
+        unpair1(pair(tag, pair(el, er))) == unpair1(pair(tag, pair(sl, sr))),
+{
+    lemma_unpair1_pair(tag, pair(el, er));
+    lemma_unpair1_pair(tag, pair(sl, sr));
+}
+
+proof fn lemma_subst_tag_atomic_unary(f: Formula, var: nat, t: Term)
+    requires formula_tag(f) <= 2,
     ensures unpair1(encode(f)) == unpair1(encode(subst(f, var, t))),
-    decreases f,
 {
     match f {
         Formula::Eq { left, right } => {
@@ -685,26 +693,15 @@ pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
             lemma_unpair1_pair(2nat, encode(*sub));
             lemma_unpair1_pair(2nat, encode(subst(*sub, var, t)));
         },
-        Formula::And { left, right } => {
-            lemma_unpair1_pair(3nat, pair(encode(*left), encode(*right)));
-            lemma_unpair1_pair(3nat, pair(encode(subst(*left, var, t)),
-                encode(subst(*right, var, t))));
-        },
-        Formula::Or { left, right } => {
-            lemma_unpair1_pair(4nat, pair(encode(*left), encode(*right)));
-            lemma_unpair1_pair(4nat, pair(encode(subst(*left, var, t)),
-                encode(subst(*right, var, t))));
-        },
-        Formula::Implies { left, right } => {
-            lemma_unpair1_pair(5nat, pair(encode(*left), encode(*right)));
-            lemma_unpair1_pair(5nat, pair(encode(subst(*left, var, t)),
-                encode(subst(*right, var, t))));
-        },
-        Formula::Iff { left, right } => {
-            lemma_unpair1_pair(6nat, pair(encode(*left), encode(*right)));
-            lemma_unpair1_pair(6nat, pair(encode(subst(*left, var, t)),
-                encode(subst(*right, var, t))));
-        },
+        _ => {},
+    }
+}
+
+proof fn lemma_subst_tag_quantifier(f: Formula, var: nat, t: Term)
+    requires formula_tag(f) >= 7,
+    ensures unpair1(encode(f)) == unpair1(encode(subst(f, var, t))),
+{
+    match f {
         Formula::Forall { var: v, sub } => {
             lemma_unpair1_pair(7nat, pair(v, encode(*sub)));
             if v == var {} else {
@@ -716,6 +713,51 @@ pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
             if v == var {} else {
                 lemma_unpair1_pair(8nat, pair(v, encode(subst(*sub, var, t))));
             }
+        },
+        _ => {},
+    }
+}
+
+proof fn lemma_subst_tag_compound(f: Formula, var: nat, t: Term)
+    requires formula_tag(f) >= 3,
+    ensures unpair1(encode(f)) == unpair1(encode(subst(f, var, t))),
+{
+    if formula_tag(f) >= 7 {
+        lemma_subst_tag_quantifier(f, var, t);
+    } else {
+        match f {
+            Formula::And { left, right } => {
+                lemma_subst_tag_binary(3, encode(*left), encode(*right),
+                    encode(subst(*left, var, t)), encode(subst(*right, var, t)));
+            },
+            Formula::Or { left, right } => {
+                lemma_subst_tag_binary(4, encode(*left), encode(*right),
+                    encode(subst(*left, var, t)), encode(subst(*right, var, t)));
+            },
+            Formula::Implies { left, right } => {
+                lemma_subst_tag_binary(5, encode(*left), encode(*right),
+                    encode(subst(*left, var, t)), encode(subst(*right, var, t)));
+            },
+            Formula::Iff { left, right } => {
+                lemma_subst_tag_binary(6, encode(*left), encode(*right),
+                    encode(subst(*left, var, t)), encode(subst(*right, var, t)));
+            },
+            _ => {},
+        }
+    }
+}
+
+///  Substitution preserves formula tags in the encoding.
+pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
+    ensures unpair1(encode(f)) == unpair1(encode(subst(f, var, t))),
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } | Formula::In { .. } | Formula::Not { .. } => {
+            lemma_subst_tag_atomic_unary(f, var, t);
+        },
+        _ => {
+            lemma_subst_tag_compound(f, var, t);
         },
     }
 }
