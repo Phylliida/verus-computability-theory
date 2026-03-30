@@ -54,6 +54,16 @@ pub proof fn lemma_pair_gt_components(a: nat, b: nat)
     assert(triangular(a + b) >= a + b);
 }
 
+///  pair(a, b) >= a + b.
+pub proof fn lemma_pair_ge_sum(a: nat, b: nat)
+    ensures
+        pair(a, b) >= a + b,
+{
+    lemma_triangular_ge(a + b);
+    assert(pair(a, b) == triangular(a + b) + a);
+    assert(triangular(a + b) >= a + b);
+}
+
 ///  If a >= 1, then pair(a, b) > b.
 pub proof fn lemma_pair_pos_tag_gt_content(a: nat, b: nat)
     requires

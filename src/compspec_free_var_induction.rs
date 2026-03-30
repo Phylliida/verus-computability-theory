@@ -256,21 +256,10 @@ pub proof fn lemma_has_free_var_sentence_core(f: Formula, v: nat)
     lemma_hfv_unfold(f_enc, v);
     //  eval = unpair2(compspec_iterate(step, f_enc, pair(pair(f_enc+1, 0), 0), pair(f_enc, v)))
 
-    if f_enc >= traversal_cost(f, v) {
-        //  Full traversal: found stays 0
-        lemma_hfv_found_zero(f, v, f_enc, f_enc);
-    }
-    //  else: f_enc < traversal_cost. BoundedRec runs < cost steps.
-    //  The found flag starts at 0 and each executed step maintains it at 0
-    //  (since all popped formulas have v not free). The result has found = 0.
-    //  For the edge case f_enc == 0: no iterations, base returned, found = 0.
-    //  For f_enc > 0 but < cost: partial traversal, found still 0.
-    //  This follows because compspec_iterate for 0 steps returns the acc,
-    //  and each step maintains found = 0 for the same reason as the full traversal.
-    //  The general case requires a fuel-indexed invariant proof which we defer —
-    //  but in practice, encode(f) >= traversal_cost(f, v) holds whenever
-    //  !has_free_var(f, v) and encode(f) > 0 (the only exception is
-    //  encode(Eq(Var(0), Var(0))) = 0 which has 0 iterations → found = 0 by base case).
+    //  Prove encode(f) >= traversal_cost(f, v) for sentences
+    lemma_sentence_encode_ge_cost(f, v);
+    //  Full traversal completes with found = 0
+    lemma_hfv_found_zero(f, v, f_enc, f_enc);
 }
 
 } //  verus!
