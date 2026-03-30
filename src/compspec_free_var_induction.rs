@@ -252,14 +252,28 @@ pub proof fn lemma_has_free_var_sentence_core(f: Formula, v: nat)
 {
     let f_enc = encode(f);
     lemma_sentence_no_free_var(f, v);
-    //  Unfold has_free_var_comp to compspec_iterate
     lemma_hfv_unfold(f_enc, v);
-    //  eval = unpair2(compspec_iterate(step, f_enc, pair(pair(f_enc+1, 0), 0), pair(f_enc, v)))
-
-    //  Prove encode(f) >= traversal_cost(f, v) for sentences
     lemma_sentence_encode_ge_cost(f, v);
-    //  Full traversal completes with found = 0
     lemma_hfv_found_zero(f, v, f_enc, f_enc);
+}
+
+///  General: has_free_var_comp() returns 0 when var is not free in formula.
+///  Works for non-sentences too (e.g., vacuous quantification).
+pub proof fn lemma_has_free_var_general(f: Formula, v: nat)
+    requires
+        !has_free_var(f, v),
+    ensures
+        eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0,
+{
+    let f_enc = encode(f);
+    lemma_hfv_unfold(f_enc, v);
+    if f_enc == 0 {
+        //  0 fuel: compspec_iterate returns base, found = 0
+        lemma_unpair2_pair(pair(1nat, 0nat), 0nat);
+    } else {
+        lemma_encode_ge_cost_inner(f, v);
+        lemma_hfv_found_zero(f, v, f_enc, f_enc);
+    }
 }
 
 } //  verus!

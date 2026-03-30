@@ -245,7 +245,7 @@ pub proof fn lemma_sentence_encode_ge_cost(f: Formula, v: nat)
 ///  and f is not Eq(Var(0), Var(0)).
 ///  For the Eq(Var(0), Var(0)) edge case, encode = 0 < 1 = cost.
 ///  But this formula is never a sentence.
-proof fn lemma_encode_ge_cost_inner(f: Formula, v: nat)
+pub proof fn lemma_encode_ge_cost_inner(f: Formula, v: nat)
     requires
         !has_free_var(f, v),
         //  Exclude the one edge case: Eq(Var(0), Var(0))
