@@ -115,6 +115,46 @@ pub open spec fn eval_comp(c: CompSpec, input: nat) -> nat
     }
 }
 
+///  Closure-free iteration wrapper: avoids the Verus spec_fn closure identity problem.
+///  Defined as iterate with an explicit closure over eval_comp.
+pub open spec fn compspec_iterate(
+    step: CompSpec, count: nat, acc: nat, input: nat,
+) -> nat {
+    iterate(|x: nat| eval_comp(step, x), count, acc, input)
+}
+
+///  Key bridging lemma: eval_comp(BoundedRec{...}) == compspec_iterate(step, n, b, input).
+///  Proved by induction on the count, step-by-step matching the iterates.
+pub proof fn lemma_eval_bounded_rec(
+    count_fn: CompSpec, base: CompSpec, step: CompSpec, input: nat,
+)
+    ensures
+        eval_comp(
+            CompSpec::BoundedRec {
+                count_fn: Box::new(count_fn),
+                base: Box::new(base),
+                step: Box::new(step),
+            },
+            input,
+        ) == compspec_iterate(
+            step,
+            eval_comp(count_fn, input),
+            eval_comp(base, input),
+            input,
+        ),
+{
+    //  eval_comp(BoundedRec{...}) uses iterate(|x| eval_comp(*Box(step), x), n, b, input)
+    //  compspec_iterate uses iterate(|x| eval_comp(step, x), n, b, input)
+    //  These closures differ syntactically but agree pointwise.
+    //  Bridge via lemma_iterate_ext.
+    let n = eval_comp(count_fn, input);
+    let b = eval_comp(base, input);
+    let f_internal: spec_fn(nat) -> nat = |x: nat| eval_comp(*Box::new(step), x);
+    let f_external: spec_fn(nat) -> nat = |x: nat| eval_comp(step, x);
+    assert forall|x: nat| #[trigger] f_internal(x) == f_external(x) by {}
+    lemma_iterate_ext(f_internal, f_external, n, b, input);
+}
+
 //  ============================================================
 //  Core Church-Turing Axioms
 //  ============================================================

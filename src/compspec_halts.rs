@@ -1459,7 +1459,7 @@ proof fn lemma_has_free_var_sentence(f: Formula, v: nat)
 ///  Helper: the check_is_sentence BoundedRec iteration preserves nonzero acc
 ///  when all has_free_var checks return 0.
 ///  fuel <= f_enc ensures all checked variables are < f_enc.
-proof fn lemma_check_is_sentence_iter(
+pub proof fn lemma_check_is_sentence_iter(
     f_enc: nat,
     fuel: nat,
     acc: nat,
@@ -1502,15 +1502,9 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
     by {
         lemma_has_free_var_sentence(f, v);
     };
-    //  The BoundedRec iteration preserves nonzero accumulator
-    lemma_check_is_sentence_iter(f_enc, f_enc, 1);
-    //  check_is_sentence() = BoundedRec { Id, cs_const(1), check_is_sentence_step() }
-    //  eval_comp unfolds to: iterate(|x| eval_comp(check_is_sentence_step(), x), f_enc, 1, f_enc)
-    //  The iterate result is proven nonzero above.
-    //  The remaining gap is connecting eval_comp(BoundedRec{...}) to the iterate call.
-    //  This is the closure identity issue: Z3 can't match closures created at different
-    //  program points, even when they capture the same opaque function.
-    assume(eval_comp(check_is_sentence(), f_enc) != 0);
+    //  Delegate to the helper module where closure matching works
+    //  (compspec_halts.rs has too many proof fn bodies causing trigger pollution)
+    lemma_check_is_sentence_nonzero(f_enc);
 }
 
 //  lemma_eval_last_formula_enc is in compspec_eval_helpers.rs
