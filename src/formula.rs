@@ -166,6 +166,80 @@ pub open spec fn traversal_cost(f: Formula, v: nat) -> nat
     }
 }
 
+///  Cost of traversing a formula for substitution checking.
+///  When bound var == subst var, the checker shortcuts (cost 1, not 1+cost(sub)).
+pub open spec fn subst_traversal_cost(f: Formula, var: nat) -> nat
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => 1,
+        Formula::In { .. } => 1,
+        Formula::Not { sub } => 1 + subst_traversal_cost(*sub, var),
+        Formula::And { left, right } => 1 + subst_traversal_cost(*left, var) + subst_traversal_cost(*right, var),
+        Formula::Or { left, right } => 1 + subst_traversal_cost(*left, var) + subst_traversal_cost(*right, var),
+        Formula::Implies { left, right } => 1 + subst_traversal_cost(*left, var) + subst_traversal_cost(*right, var),
+        Formula::Iff { left, right } => 1 + subst_traversal_cost(*left, var) + subst_traversal_cost(*right, var),
+        Formula::Forall { var: v, sub } =>
+            if v == var { 1 } else { 1 + subst_traversal_cost(*sub, var) },
+        Formula::Exists { var: v, sub } =>
+            if v == var { 1 } else { 1 + subst_traversal_cost(*sub, var) },
+    }
+}
+
+pub proof fn lemma_subst_traversal_cost_pos(f: Formula, var: nat)
+    ensures subst_traversal_cost(f, var) >= 1,
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub } => { lemma_subst_traversal_cost_pos(*sub, var); },
+        Formula::And { left, right } => { lemma_subst_traversal_cost_pos(*left, var); },
+        Formula::Or { left, right } => { lemma_subst_traversal_cost_pos(*left, var); },
+        Formula::Implies { left, right } => { lemma_subst_traversal_cost_pos(*left, var); },
+        Formula::Iff { left, right } => { lemma_subst_traversal_cost_pos(*left, var); },
+        Formula::Forall { var: v, sub } => {},
+        Formula::Exists { var: v, sub } => {},
+    }
+}
+
+pub proof fn lemma_subst_cost_le_formula_size(f: Formula, var: nat)
+    ensures subst_traversal_cost(f, var) <= formula_size(f),
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub } => { lemma_subst_cost_le_formula_size(*sub, var); },
+        Formula::And { left, right } => {
+            lemma_subst_cost_le_formula_size(*left, var);
+            lemma_subst_cost_le_formula_size(*right, var);
+        },
+        Formula::Or { left, right } => {
+            lemma_subst_cost_le_formula_size(*left, var);
+            lemma_subst_cost_le_formula_size(*right, var);
+        },
+        Formula::Implies { left, right } => {
+            lemma_subst_cost_le_formula_size(*left, var);
+            lemma_subst_cost_le_formula_size(*right, var);
+        },
+        Formula::Iff { left, right } => {
+            lemma_subst_cost_le_formula_size(*left, var);
+            lemma_subst_cost_le_formula_size(*right, var);
+        },
+        Formula::Forall { var: v, sub } => {
+            if v == var {} else {
+                lemma_subst_cost_le_formula_size(*sub, var);
+            }
+        },
+        Formula::Exists { var: v, sub } => {
+            if v == var {} else {
+                lemma_subst_cost_le_formula_size(*sub, var);
+            }
+        },
+    }
+}
+
 ///  Traversal cost is bounded by formula size.
 pub proof fn lemma_traversal_cost_le_size(f: Formula, v: nat)
     ensures
