@@ -101,6 +101,125 @@ pub open spec fn is_sentence(f: Formula) -> bool {
     free_vars(f) =~= Set::empty()
 }
 
+///  Check if variable v is free in formula f.
+pub open spec fn has_free_var(f: Formula, v: nat) -> bool {
+    free_vars(f).contains(v)
+}
+
+///  Sentences have no free variables.
+pub proof fn lemma_sentence_no_free_var(f: Formula, v: nat)
+    requires
+        is_sentence(f),
+    ensures
+        !has_free_var(f, v),
+{
+}
+
+///  has_free_var decomposes for Not.
+pub proof fn lemma_has_free_var_not(sub: Formula, v: nat)
+    ensures
+        has_free_var(Formula::Not { sub: Box::new(sub) }, v) == has_free_var(sub, v),
+{
+}
+
+///  has_free_var decomposes for binary connectives.
+pub proof fn lemma_has_free_var_binary(left: Formula, right: Formula, v: nat)
+    ensures
+        has_free_var(Formula::And { left: Box::new(left), right: Box::new(right) }, v)
+            == (has_free_var(left, v) || has_free_var(right, v)),
+        has_free_var(Formula::Or { left: Box::new(left), right: Box::new(right) }, v)
+            == (has_free_var(left, v) || has_free_var(right, v)),
+        has_free_var(Formula::Implies { left: Box::new(left), right: Box::new(right) }, v)
+            == (has_free_var(left, v) || has_free_var(right, v)),
+        has_free_var(Formula::Iff { left: Box::new(left), right: Box::new(right) }, v)
+            == (has_free_var(left, v) || has_free_var(right, v)),
+{
+}
+
+///  has_free_var decomposes for quantifiers.
+pub proof fn lemma_has_free_var_quantifier(var: nat, sub: Formula, v: nat)
+    ensures
+        has_free_var(Formula::Forall { var, sub: Box::new(sub) }, v)
+            == (has_free_var(sub, v) && v != var),
+        has_free_var(Formula::Exists { var, sub: Box::new(sub) }, v)
+            == (has_free_var(sub, v) && v != var),
+{
+}
+
+///  Traversal cost: actual number of BoundedRec steps to process formula f
+///  when checking variable v. Accounts for quantifier short-circuiting.
+pub open spec fn traversal_cost(f: Formula, v: nat) -> nat
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => 1,
+        Formula::In { .. } => 1,
+        Formula::Not { sub } => 1 + traversal_cost(*sub, v),
+        Formula::And { left, right } => 1 + traversal_cost(*left, v) + traversal_cost(*right, v),
+        Formula::Or { left, right } => 1 + traversal_cost(*left, v) + traversal_cost(*right, v),
+        Formula::Implies { left, right } => 1 + traversal_cost(*left, v) + traversal_cost(*right, v),
+        Formula::Iff { left, right } => 1 + traversal_cost(*left, v) + traversal_cost(*right, v),
+        Formula::Forall { var, sub } =>
+            if var == v { 1 } else { 1 + traversal_cost(*sub, v) },
+        Formula::Exists { var, sub } =>
+            if var == v { 1 } else { 1 + traversal_cost(*sub, v) },
+    }
+}
+
+///  Traversal cost is bounded by formula size.
+pub proof fn lemma_traversal_cost_le_size(f: Formula, v: nat)
+    ensures
+        traversal_cost(f, v) <= formula_size(f),
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub } => { lemma_traversal_cost_le_size(*sub, v); },
+        Formula::And { left, right } => {
+            lemma_traversal_cost_le_size(*left, v);
+            lemma_traversal_cost_le_size(*right, v);
+        },
+        Formula::Or { left, right } => {
+            lemma_traversal_cost_le_size(*left, v);
+            lemma_traversal_cost_le_size(*right, v);
+        },
+        Formula::Implies { left, right } => {
+            lemma_traversal_cost_le_size(*left, v);
+            lemma_traversal_cost_le_size(*right, v);
+        },
+        Formula::Iff { left, right } => {
+            lemma_traversal_cost_le_size(*left, v);
+            lemma_traversal_cost_le_size(*right, v);
+        },
+        Formula::Forall { var, sub } => { lemma_traversal_cost_le_size(*sub, v); },
+        Formula::Exists { var, sub } => { lemma_traversal_cost_le_size(*sub, v); },
+    }
+}
+
+///  Traversal cost is always >= 1.
+pub proof fn lemma_traversal_cost_pos(f: Formula, v: nat)
+    ensures
+        traversal_cost(f, v) >= 1,
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        _ => {},
+    }
+}
+
+///  has_free_var for atomic formulas (Eq, In).
+pub proof fn lemma_has_free_var_atomic(left: Term, right: Term, v: nat)
+    ensures
+        has_free_var(Formula::Eq { left, right }, v)
+            == (encode_term(left) == v || encode_term(right) == v),
+        has_free_var(Formula::In { left, right }, v)
+            == (encode_term(left) == v || encode_term(right) == v),
+{
+}
+
 //  ============================================================
 //  Substitution
 //  ============================================================
@@ -400,7 +519,7 @@ pub open spec fn formula_content(f: Formula) -> nat
 }
 
 ///  encode(f) == pair(formula_tag(f), formula_content(f)).
-proof fn lemma_encode_is_pair(f: Formula)
+pub proof fn lemma_encode_is_pair(f: Formula)
     ensures
         encode(f) == pair(formula_tag(f), formula_content(f)),
     decreases f,

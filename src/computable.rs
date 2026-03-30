@@ -132,6 +132,20 @@ pub open spec fn compspec_iterate(
     }
 }
 
+///  One-step unfolding of compspec_iterate.
+pub proof fn lemma_compspec_iterate_unfold(
+    step: CompSpec, count: nat, acc: nat, input: nat,
+)
+    requires
+        count > 0,
+    ensures
+        compspec_iterate(step, count, acc, input)
+            == compspec_iterate(step, (count - 1) as nat,
+                eval_comp(step, pair((count - 1) as nat, pair(acc, input))),
+                input),
+{
+}
+
 ///  Iterate is extensional: pointwise-equal step functions give equal results.
 pub proof fn lemma_iterate_ext(
     f1: spec_fn(nat) -> nat,
