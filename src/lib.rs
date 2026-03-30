@@ -77,6 +77,9 @@ pub mod compspec_subst_helpers;
 pub mod compspec_subst_step_helpers;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_induction_steps;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction;
 
 
