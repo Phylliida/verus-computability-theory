@@ -100,6 +100,12 @@ pub mod compspec_forward_structure2;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_forward_checkers;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_checkers2;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_checkers3;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
