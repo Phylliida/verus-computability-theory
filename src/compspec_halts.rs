@@ -481,12 +481,86 @@ pub open spec fn check_axiom_vacuous_quant() -> CompSpec {
 ///  Input to step: pair(i, pair(acc, pair(x_enc, y_enc)))
 ///  acc = pair(stack, valid)
 ///  Pops one (left_node, right_node) pair, checks structural correspondence.
+///  Named sub-expressions for check_eq_subst_process (proof modularity).
+pub open spec fn esb_entry() -> CompSpec { cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc()))) }
+pub open spec fn esb_rest() -> CompSpec { cs_snd(cs_fst(br_acc())) }
+pub open spec fn esb_left_node() -> CompSpec { cs_fst(esb_entry()) }
+pub open spec fn esb_right_node() -> CompSpec { cs_snd(esb_entry()) }
+pub open spec fn esb_left_tag() -> CompSpec { cs_fst(esb_left_node()) }
+pub open spec fn esb_right_tag() -> CompSpec { cs_fst(esb_right_node()) }
+pub open spec fn esb_tags_match() -> CompSpec { cs_eq(esb_left_tag(), esb_right_tag()) }
+pub open spec fn esb_xy_pair() -> CompSpec { cs_snd(cs_snd(cs_snd(cs_snd(CompSpec::Id)))) }
+pub open spec fn esb_x_enc() -> CompSpec { cs_fst(esb_xy_pair()) }
+pub open spec fn esb_y_enc() -> CompSpec { cs_snd(esb_xy_pair()) }
+
+///  Atomic branch (tags 0-1): check term positions match or x↔y swap.
+pub open spec fn esb_atomic_ok() -> CompSpec {
+    let ln = esb_left_node();
+    let rn = esb_right_node();
+    let lt1 = cs_fst(cs_snd(ln)); let lt2 = cs_snd(cs_snd(ln));
+    let rt1 = cs_fst(cs_snd(rn)); let rt2 = cs_snd(cs_snd(rn));
+    let t1_same = cs_eq(lt1, rt1);
+    let t1_swap = cs_and(cs_eq(lt1, esb_x_enc()), cs_eq(rt1, esb_y_enc()));
+    let t2_same = cs_eq(lt2, rt2);
+    let t2_swap = cs_and(cs_eq(lt2, esb_x_enc()), cs_eq(rt2, esb_y_enc()));
+    cs_pair(esb_rest(), cs_and(esb_tags_match(), cs_and(cs_or(t1_same, t1_swap), cs_or(t2_same, t2_swap))))
+}
+
+///  Unary branch (tag 2): push sub-pair.
+pub open spec fn esb_unary_ok() -> CompSpec {
+    let unary_entry = cs_pair(cs_snd(esb_left_node()), cs_snd(esb_right_node()));
+    cs_pair(
+        cs_pair(CompSpec::Add { left: Box::new(unary_entry), right: Box::new(cs_const(1)) }, esb_rest()),
+        esb_tags_match())
+}
+
+///  Binary branch (tags 3-6): push two child pairs.
+pub open spec fn esb_binary_ok() -> CompSpec {
+    let lc = cs_snd(esb_left_node()); let rc = cs_snd(esb_right_node());
+    let el = cs_pair(cs_fst(lc), cs_fst(rc));
+    let er = cs_pair(cs_snd(lc), cs_snd(rc));
+    cs_pair(
+        cs_pair(
+            CompSpec::Add { left: Box::new(el), right: Box::new(cs_const(1)) },
+            cs_pair(CompSpec::Add { left: Box::new(er), right: Box::new(cs_const(1)) }, esb_rest()),
+        ),
+        esb_tags_match())
+}
+
+///  Quantifier branch (tags 7-8): check bound vars, push sub-pair.
+pub open spec fn esb_quant_ok() -> CompSpec {
+    let ln = esb_left_node(); let rn = esb_right_node();
+    let left_bv = cs_fst(cs_snd(ln)); let right_bv = cs_fst(cs_snd(rn));
+    let qe = cs_pair(cs_snd(cs_snd(ln)), cs_snd(cs_snd(rn)));
+    cs_pair(
+        cs_pair(CompSpec::Add { left: Box::new(qe), right: Box::new(cs_const(1)) }, esb_rest()),
+        cs_and(esb_tags_match(), cs_eq(left_bv, right_bv)))
+}
+
+///  Process block for eq_subst parallel walk (extracted for proof modularity).
+pub open spec fn check_eq_subst_process() -> CompSpec {
+    let is_compound = cs_lt(cs_const(1), esb_left_tag());
+    let is_quantifier = cs_lt(cs_const(6), esb_left_tag());
+
+    CompSpec::IfZero {
+        cond: Box::new(is_compound),
+        then_br: Box::new(esb_atomic_ok()),
+        else_br: Box::new(CompSpec::IfZero {
+            cond: Box::new(cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, esb_left_tag()))),
+            then_br: Box::new(esb_unary_ok()),
+            else_br: Box::new(CompSpec::IfZero {
+                cond: Box::new(is_quantifier),
+                then_br: Box::new(esb_binary_ok()),
+                else_br: Box::new(esb_quant_ok()),
+            }),
+        }),
+    }
+}
+
 pub open spec fn check_eq_subst_step() -> CompSpec {
-    let acc = br_acc();             //  pair(stack, valid)
+    let acc = br_acc();
     let stack = cs_fst(acc);
     let valid = cs_snd(acc);
-    let x_enc = cs_fst(cs_snd(cs_snd(CompSpec::Id)));
-    let y_enc = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
 
     CompSpec::IfZero {
         cond: Box::new(valid),
@@ -494,74 +568,7 @@ pub open spec fn check_eq_subst_step() -> CompSpec {
         else_br: Box::new(CompSpec::IfZero {
             cond: Box::new(cs_fst(stack)),
             then_br: Box::new(acc),  //  stack empty, success
-            else_br: Box::new({
-                //  Pop entry
-                let entry = cs_comp(CompSpec::Pred, cs_fst(stack));
-                let rest = cs_snd(stack);
-                let left_node = cs_fst(entry);
-                let right_node = cs_snd(entry);
-                let left_tag = cs_fst(left_node);
-                let right_tag = cs_fst(right_node);
-                let tags_match = cs_eq(left_tag, right_tag);
-
-                //  Atomic (tags 0-1): check each term position matches or is x↔y swap
-                let left_t1 = cs_fst(cs_snd(left_node));
-                let left_t2 = cs_snd(cs_snd(left_node));
-                let right_t1 = cs_fst(cs_snd(right_node));
-                let right_t2 = cs_snd(cs_snd(right_node));
-                //  term_ok(lt, rt) = (lt == rt) || (lt == x && rt == y)
-                let t1_same = cs_eq(left_t1, right_t1);
-                let t1_swap = cs_and(cs_eq(left_t1, x_enc), cs_eq(right_t1, y_enc));
-                let t1_ok = cs_or(t1_same, t1_swap);
-                let t2_same = cs_eq(left_t2, right_t2);
-                let t2_swap = cs_and(cs_eq(left_t2, x_enc), cs_eq(right_t2, y_enc));
-                let t2_ok = cs_or(t2_same, t2_swap);
-                let atomic_ok = cs_pair(rest, cs_and(tags_match, cs_and(t1_ok, t2_ok)));
-
-                //  Unary (tag 2): push (sub_l, sub_r)
-                let unary_entry = cs_pair(cs_snd(left_node), cs_snd(right_node));
-                let unary_ok = cs_pair(
-                    cs_pair(CompSpec::Add { left: Box::new(unary_entry), right: Box::new(cs_const(1)) }, rest),
-                    tags_match);
-
-                //  Binary (tags 3-6): push two child pairs
-                let left_content = cs_snd(left_node);
-                let right_content = cs_snd(right_node);
-                let entry_l = cs_pair(cs_fst(left_content), cs_fst(right_content));
-                let entry_r = cs_pair(cs_snd(left_content), cs_snd(right_content));
-                let binary_ok = cs_pair(
-                    cs_pair(
-                        CompSpec::Add { left: Box::new(entry_l), right: Box::new(cs_const(1)) },
-                        cs_pair(CompSpec::Add { left: Box::new(entry_r), right: Box::new(cs_const(1)) }, rest),
-                    ),
-                    tags_match);
-
-                //  Quantifier (tags 7-8): check bound vars match, push sub pair
-                let left_bv = cs_fst(cs_snd(left_node));
-                let right_bv = cs_fst(cs_snd(right_node));
-                let quant_entry = cs_pair(cs_snd(cs_snd(left_node)), cs_snd(cs_snd(right_node)));
-                let quant_ok = cs_pair(
-                    cs_pair(CompSpec::Add { left: Box::new(quant_entry), right: Box::new(cs_const(1)) }, rest),
-                    cs_and(tags_match, cs_eq(left_bv, right_bv)));
-
-                //  Dispatch on tag
-                let is_quantifier = cs_lt(cs_const(6), left_tag);
-                let is_compound = cs_lt(cs_const(1), left_tag);
-
-                CompSpec::IfZero {
-                    cond: Box::new(is_compound),
-                    then_br: Box::new(atomic_ok),  //  tag <= 1
-                    else_br: Box::new(CompSpec::IfZero {
-                        cond: Box::new(cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, left_tag))),
-                        then_br: Box::new(unary_ok),  //  tag == 2
-                        else_br: Box::new(CompSpec::IfZero {
-                            cond: Box::new(is_quantifier),
-                            then_br: Box::new(binary_ok),  //  tags 3-6
-                            else_br: Box::new(quant_ok),    //  tags 7-8
-                        }),
-                    }),
-                }
-            }),
+            else_br: Box::new(check_eq_subst_process()),
         }),
     }
 }

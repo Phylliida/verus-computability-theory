@@ -1067,4 +1067,296 @@ pub proof fn lemma_encode_decode_formula(n: nat)
     //  So encode(decode_formula(n)) == encode(decode_formula(encode(f))) == encode(f) == n
 }
 
+//  ============================================================
+//  Eq-subst compatibility: two formulas with same structure,
+//  differing only at term positions where one has x and other has y.
+//  ============================================================
+
+pub open spec fn eq_subst_term_compatible(t1: Term, t2: Term, x: Term, y: Term) -> bool {
+    t1 == t2 || (t1 == x && t2 == y)
+}
+
+pub open spec fn eq_subst_compatible(f1: Formula, f2: Formula, x: Term, y: Term) -> bool
+    decreases f1,
+{
+    match f1 {
+        Formula::Eq { left: l1, right: r1 } => match f2 {
+            Formula::Eq { left: l2, right: r2 } =>
+                eq_subst_term_compatible(l1, l2, x, y) && eq_subst_term_compatible(r1, r2, x, y),
+            _ => false,
+        },
+        Formula::In { left: l1, right: r1 } => match f2 {
+            Formula::In { left: l2, right: r2 } =>
+                eq_subst_term_compatible(l1, l2, x, y) && eq_subst_term_compatible(r1, r2, x, y),
+            _ => false,
+        },
+        Formula::Not { sub: s1 } => match f2 {
+            Formula::Not { sub: s2 } => eq_subst_compatible(*s1, *s2, x, y),
+            _ => false,
+        },
+        Formula::And { left: l1, right: r1 } => match f2 {
+            Formula::And { left: l2, right: r2 } =>
+                eq_subst_compatible(*l1, *l2, x, y) && eq_subst_compatible(*r1, *r2, x, y),
+            _ => false,
+        },
+        Formula::Or { left: l1, right: r1 } => match f2 {
+            Formula::Or { left: l2, right: r2 } =>
+                eq_subst_compatible(*l1, *l2, x, y) && eq_subst_compatible(*r1, *r2, x, y),
+            _ => false,
+        },
+        Formula::Implies { left: l1, right: r1 } => match f2 {
+            Formula::Implies { left: l2, right: r2 } =>
+                eq_subst_compatible(*l1, *l2, x, y) && eq_subst_compatible(*r1, *r2, x, y),
+            _ => false,
+        },
+        Formula::Iff { left: l1, right: r1 } => match f2 {
+            Formula::Iff { left: l2, right: r2 } =>
+                eq_subst_compatible(*l1, *l2, x, y) && eq_subst_compatible(*r1, *r2, x, y),
+            _ => false,
+        },
+        Formula::Forall { var: v1, sub: s1 } => match f2 {
+            Formula::Forall { var: v2, sub: s2 } =>
+                v1 == v2 && eq_subst_compatible(*s1, *s2, x, y),
+            _ => false,
+        },
+        Formula::Exists { var: v1, sub: s1 } => match f2 {
+            Formula::Exists { var: v2, sub: s2 } =>
+                v1 == v2 && eq_subst_compatible(*s1, *s2, x, y),
+            _ => false,
+        },
+    }
+}
+
+///  Compatible formulas have the same size.
+pub proof fn lemma_eq_subst_compatible_same_size(f1: Formula, f2: Formula, x: Term, y: Term)
+    requires eq_subst_compatible(f1, f2, x, y),
+    ensures formula_size(f1) == formula_size(f2),
+    decreases f1,
+{
+    match f1 {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub: s1 } => match f2 {
+            Formula::Not { sub: s2 } => { lemma_eq_subst_compatible_same_size(*s1, *s2, x, y); },
+            _ => {},
+        },
+        Formula::And { left: l1, right: r1 } => match f2 {
+            Formula::And { left: l2, right: r2 } => {
+                lemma_eq_subst_compatible_same_size(*l1, *l2, x, y);
+                lemma_eq_subst_compatible_same_size(*r1, *r2, x, y);
+            },
+            _ => {},
+        },
+        Formula::Or { left: l1, right: r1 } => match f2 {
+            Formula::Or { left: l2, right: r2 } => {
+                lemma_eq_subst_compatible_same_size(*l1, *l2, x, y);
+                lemma_eq_subst_compatible_same_size(*r1, *r2, x, y);
+            },
+            _ => {},
+        },
+        Formula::Implies { left: l1, right: r1 } => match f2 {
+            Formula::Implies { left: l2, right: r2 } => {
+                lemma_eq_subst_compatible_same_size(*l1, *l2, x, y);
+                lemma_eq_subst_compatible_same_size(*r1, *r2, x, y);
+            },
+            _ => {},
+        },
+        Formula::Iff { left: l1, right: r1 } => match f2 {
+            Formula::Iff { left: l2, right: r2 } => {
+                lemma_eq_subst_compatible_same_size(*l1, *l2, x, y);
+                lemma_eq_subst_compatible_same_size(*r1, *r2, x, y);
+            },
+            _ => {},
+        },
+        Formula::Forall { var: v1, sub: s1 } => match f2 {
+            Formula::Forall { var: v2, sub: s2 } => {
+                lemma_eq_subst_compatible_same_size(*s1, *s2, x, y);
+            },
+            _ => {},
+        },
+        Formula::Exists { var: v1, sub: s1 } => match f2 {
+            Formula::Exists { var: v2, sub: s2 } => {
+                lemma_eq_subst_compatible_same_size(*s1, *s2, x, y);
+            },
+            _ => {},
+        },
+    }
+}
+
+///  Any formula is eq_subst_compatible with itself (at term level, t == t always holds).
+pub proof fn lemma_eq_subst_compatible_reflexive(f: Formula, x: Term, y: Term)
+    ensures eq_subst_compatible(f, f, x, y),
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub } => { lemma_eq_subst_compatible_reflexive(*sub, x, y); },
+        Formula::And { left, right } => {
+            lemma_eq_subst_compatible_reflexive(*left, x, y);
+            lemma_eq_subst_compatible_reflexive(*right, x, y);
+        },
+        Formula::Or { left, right } => {
+            lemma_eq_subst_compatible_reflexive(*left, x, y);
+            lemma_eq_subst_compatible_reflexive(*right, x, y);
+        },
+        Formula::Implies { left, right } => {
+            lemma_eq_subst_compatible_reflexive(*left, x, y);
+            lemma_eq_subst_compatible_reflexive(*right, x, y);
+        },
+        Formula::Iff { left, right } => {
+            lemma_eq_subst_compatible_reflexive(*left, x, y);
+            lemma_eq_subst_compatible_reflexive(*right, x, y);
+        },
+        Formula::Forall { var, sub } => { lemma_eq_subst_compatible_reflexive(*sub, x, y); },
+        Formula::Exists { var, sub } => { lemma_eq_subst_compatible_reflexive(*sub, x, y); },
+    }
+}
+
+///  subst(phi, var, x) and subst(phi, var, y) are eq_subst_compatible.
+pub proof fn lemma_subst_eq_subst_compatible(phi: Formula, var: nat, x: Term, y: Term)
+    ensures eq_subst_compatible(subst(phi, var, x), subst(phi, var, y), x, y),
+    decreases phi,
+{
+    match phi {
+        Formula::Eq { left, right } => {
+            //  subst_term cases: if index == var → (x, y) compatible; else → (t, t) compatible
+        },
+        Formula::In { left, right } => {},
+        Formula::Not { sub } => { lemma_subst_eq_subst_compatible(*sub, var, x, y); },
+        Formula::And { left, right } => {
+            lemma_subst_eq_subst_compatible(*left, var, x, y);
+            lemma_subst_eq_subst_compatible(*right, var, x, y);
+        },
+        Formula::Or { left, right } => {
+            lemma_subst_eq_subst_compatible(*left, var, x, y);
+            lemma_subst_eq_subst_compatible(*right, var, x, y);
+        },
+        Formula::Implies { left, right } => {
+            lemma_subst_eq_subst_compatible(*left, var, x, y);
+            lemma_subst_eq_subst_compatible(*right, var, x, y);
+        },
+        Formula::Iff { left, right } => {
+            lemma_subst_eq_subst_compatible(*left, var, x, y);
+            lemma_subst_eq_subst_compatible(*right, var, x, y);
+        },
+        Formula::Forall { var: v, sub } => {
+            if v == var {
+                //  subst returns phi unchanged → both sides identical → reflexive
+                lemma_eq_subst_compatible_reflexive(phi, x, y);
+            } else {
+                lemma_subst_eq_subst_compatible(*sub, var, x, y);
+            }
+        },
+        Formula::Exists { var: v, sub } => {
+            if v == var {
+                lemma_eq_subst_compatible_reflexive(phi, x, y);
+            } else {
+                lemma_subst_eq_subst_compatible(*sub, var, x, y);
+            }
+        },
+    }
+}
+
+///  Substitution preserves formula size.
+pub proof fn lemma_subst_preserves_size(f: Formula, var: nat, t: Term)
+    ensures formula_size(subst(f, var, t)) == formula_size(f),
+    decreases f,
+{
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { .. } => {},
+        Formula::Not { sub } => { lemma_subst_preserves_size(*sub, var, t); },
+        Formula::And { left, right } => {
+            lemma_subst_preserves_size(*left, var, t);
+            lemma_subst_preserves_size(*right, var, t);
+        },
+        Formula::Or { left, right } => {
+            lemma_subst_preserves_size(*left, var, t);
+            lemma_subst_preserves_size(*right, var, t);
+        },
+        Formula::Implies { left, right } => {
+            lemma_subst_preserves_size(*left, var, t);
+            lemma_subst_preserves_size(*right, var, t);
+        },
+        Formula::Iff { left, right } => {
+            lemma_subst_preserves_size(*left, var, t);
+            lemma_subst_preserves_size(*right, var, t);
+        },
+        Formula::Forall { var: v, sub } => {
+            if v == var {} else { lemma_subst_preserves_size(*sub, var, t); }
+        },
+        Formula::Exists { var: v, sub } => {
+            if v == var {} else { lemma_subst_preserves_size(*sub, var, t); }
+        },
+    }
+}
+
+///  encode(f) >= formula_size(f) when encode(f) > 0.
+pub proof fn lemma_encode_ge_formula_size(f: Formula)
+    requires encode(f) != 0,
+    ensures encode(f) >= formula_size(f),
+    decreases f,
+{
+    lemma_encode_is_pair(f);
+    match f {
+        Formula::Eq { .. } => {},
+        Formula::In { left, right } => {
+            lemma_pair_ge_sum(1nat, pair(encode_term(left), encode_term(right)));
+        },
+        Formula::Not { sub } => {
+            lemma_pair_ge_sum(2nat, encode(*sub));
+            if encode(*sub) != 0 {
+                lemma_encode_ge_formula_size(*sub);
+            } else {
+                lemma_formula_size_pos(*sub);
+            }
+        },
+        Formula::And { left, right } => {
+            lemma_pair_ge_sum(3nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_formula_size(*left); }
+            else { lemma_formula_size_pos(*left); }
+            if encode(*right) != 0 { lemma_encode_ge_formula_size(*right); }
+            else { lemma_formula_size_pos(*right); }
+        },
+        Formula::Or { left, right } => {
+            lemma_pair_ge_sum(4nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_formula_size(*left); }
+            else { lemma_formula_size_pos(*left); }
+            if encode(*right) != 0 { lemma_encode_ge_formula_size(*right); }
+            else { lemma_formula_size_pos(*right); }
+        },
+        Formula::Implies { left, right } => {
+            lemma_pair_ge_sum(5nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_formula_size(*left); }
+            else { lemma_formula_size_pos(*left); }
+            if encode(*right) != 0 { lemma_encode_ge_formula_size(*right); }
+            else { lemma_formula_size_pos(*right); }
+        },
+        Formula::Iff { left, right } => {
+            lemma_pair_ge_sum(6nat, pair(encode(*left), encode(*right)));
+            lemma_pair_ge_sum(encode(*left), encode(*right));
+            if encode(*left) != 0 { lemma_encode_ge_formula_size(*left); }
+            else { lemma_formula_size_pos(*left); }
+            if encode(*right) != 0 { lemma_encode_ge_formula_size(*right); }
+            else { lemma_formula_size_pos(*right); }
+        },
+        Formula::Forall { var, sub } => {
+            lemma_pair_ge_sum(7nat, pair(var, encode(*sub)));
+            lemma_pair_ge_sum(var, encode(*sub));
+            if encode(*sub) != 0 { lemma_encode_ge_formula_size(*sub); }
+            else { lemma_formula_size_pos(*sub); }
+        },
+        Formula::Exists { var, sub } => {
+            lemma_pair_ge_sum(8nat, pair(var, encode(*sub)));
+            lemma_pair_ge_sum(var, encode(*sub));
+            if encode(*sub) != 0 { lemma_encode_ge_formula_size(*sub); }
+            else { lemma_formula_size_pos(*sub); }
+        },
+    }
+}
+
 } //  verus!
