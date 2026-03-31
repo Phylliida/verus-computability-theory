@@ -1740,16 +1740,6 @@ proof fn lemma_all_lines_check_backward(s: nat, p: Proof)
         encode_proof(p) == s,
         is_valid_proof(p, |f: Formula| is_zfc_axiom(f)),
         p.lines.len() > 0,
-        //  Temporary restriction: Assumption lines use only fixed ZFC axioms
-        forall|j: nat| #[trigger] p.lines[j as int].1 == Justification::Assumption
-            && j < p.lines.len()
-            ==> (p.lines[j as int].0 == extensionality_axiom()
-                || p.lines[j as int].0 == pairing_axiom()
-                || p.lines[j as int].0 == union_axiom()
-                || p.lines[j as int].0 == powerset_axiom()
-                || p.lines[j as int].0 == infinity_axiom()
-                || p.lines[j as int].0 == foundation_axiom()
-                || p.lines[j as int].0 == choice_axiom()),
     ensures
         eval_comp(check_all_lines(), s) != 0,
 {

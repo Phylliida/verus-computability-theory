@@ -5,6 +5,7 @@ use crate::compspec_halts::*;
 use crate::compspec_axiom_correct::*;
 use crate::compspec_axiom_eval::*;
 use crate::compspec_logic_axiom_helpers::*;
+use crate::compspec_replacement_helpers::*;
 use crate::proof_system::*;
 use crate::zfc::*;
 use crate::pairing::*;
@@ -127,6 +128,39 @@ pub proof fn lemma_check_zfc_fixed_axiom_correct(f: Formula)
         lemma_enc_foundation_eval(x); lemma_eval_eq(CompSpec::Id, enc_foundation(), x);
     } else {
         lemma_enc_choice_eval(x); lemma_eval_eq(CompSpec::Id, enc_choice(), x);
+    }
+}
+
+pub proof fn lemma_check_zfc_axiom_correct(f: Formula)
+    requires is_zfc_axiom(f),
+    ensures eval_comp(check_zfc_axiom(), encode(f)) != 0,
+{
+    if f == extensionality_axiom() || f == pairing_axiom() || f == union_axiom()
+        || f == powerset_axiom() || f == infinity_axiom() || f == foundation_axiom()
+        || f == choice_axiom()
+    {
+        lemma_check_zfc_fixed_axiom_correct(f);
+    } else {
+        //  Must be a replacement axiom (only option left in is_zfc_axiom)
+        reveal(is_zfc_axiom);
+        assert(is_replacement_axiom(f));
+        let x = encode(f);
+        let e0 = cs_eq(CompSpec::Id, enc_extensionality());
+        let e1 = cs_eq(CompSpec::Id, enc_pairing());
+        let e2 = cs_eq(CompSpec::Id, enc_union());
+        let e3 = cs_eq(CompSpec::Id, enc_powerset());
+        let e4 = cs_eq(CompSpec::Id, enc_infinity());
+        let e5 = cs_eq(CompSpec::Id, enc_foundation());
+        let e6 = cs_eq(CompSpec::Id, enc_choice());
+        let e7 = check_replacement_axiom();
+        lemma_check_replacement_axiom_correct(f);
+        lemma_eval_cs_or(e6, e7, x);
+        lemma_eval_cs_or(e5, cs_or(e6, e7), x);
+        lemma_eval_cs_or(e4, cs_or(e5, cs_or(e6, e7)), x);
+        lemma_eval_cs_or(e3, cs_or(e4, cs_or(e5, cs_or(e6, e7))), x);
+        lemma_eval_cs_or(e2, cs_or(e3, cs_or(e4, cs_or(e5, cs_or(e6, e7)))), x);
+        lemma_eval_cs_or(e1, cs_or(e2, cs_or(e3, cs_or(e4, cs_or(e5, cs_or(e6, e7))))), x);
+        lemma_eval_cs_or(e0, cs_or(e1, cs_or(e2, cs_or(e3, cs_or(e4, cs_or(e5, cs_or(e6, e7)))))), x);
     }
 }
 

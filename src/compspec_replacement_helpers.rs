@@ -118,7 +118,13 @@ proof fn replacement_tags_vars_phi_subst(
         //  Phi check
         eval_comp(cs_eq(phi_cs, phi_prime), s) == 1 &&
         //  Subst check
-        eval_comp(cs_comp(check_subst_comp(), cs_pair(phi_cs, cs_pair(subst_phi_cs, z))), s) != 0
+        eval_comp(cs_comp(check_subst_comp(), cs_pair(phi_cs, cs_pair(subst_phi_cs, z))), s) != 0 &&
+        //  Variable evaluations (needed for distinct checks in compose)
+        eval_comp(x, s) == x_var &&
+        eval_comp(y, s) == y_var &&
+        eval_comp(z, s) == z_var &&
+        eval_comp(u, s) == u_var &&
+        eval_comp(v, s) == v_var
     }),
 {
     hide(eval_comp);
@@ -495,177 +501,7 @@ proof fn replacement_tags_vars_phi_subst(
 }
 
 //  ====================================================================
-//  Distinct checks
-//  ====================================================================
-
-#[verifier::rlimit(1500)]
-proof fn replacement_distinct_checks(
-    f: Formula, phi: Formula,
-    x_var: nat, y_var: nat, z_var: nat, u_var: nat, v_var: nat,
-)
-    requires
-        x_var != y_var, x_var != z_var, y_var != z_var,
-        u_var != x_var, u_var != y_var, v_var != x_var, v_var != y_var, u_var != v_var,
-        f == mk_forall(x_var, mk_implies(
-            mk_forall(y_var, mk_forall(z_var, mk_implies(
-                mk_and(phi, subst(phi, z_var, mk_var(y_var))),
-                mk_eq(mk_var(y_var), mk_var(z_var))
-            ))),
-            mk_forall(u_var, mk_exists(v_var, mk_forall(y_var,
-                mk_iff(
-                    mk_in(mk_var(y_var), mk_var(v_var)),
-                    mk_exists(x_var, mk_and(mk_in(mk_var(x_var), mk_var(u_var)), phi))
-                )
-            )))
-        )),
-    ensures ({
-        let s = encode(f);
-        let body = cs_snd(cs_snd(CompSpec::Id));
-        let func = cs_fst(cs_snd(body));
-        let range = cs_snd(cs_snd(body));
-        let x = cs_fst(cs_snd(CompSpec::Id));
-        let y = cs_fst(cs_snd(func));
-        let func_inner = cs_snd(cs_snd(func));
-        let z = cs_fst(cs_snd(func_inner));
-        let u = cs_fst(cs_snd(range));
-        let range_exists = cs_snd(cs_snd(range));
-        let v = cs_fst(cs_snd(range_exists));
-        eval_comp(cs_not(cs_eq(x, y)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(x, z)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(y, z)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(u, x)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(u, y)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(v, x)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(v, y)), s) == 1 &&
-        eval_comp(cs_not(cs_eq(u, v)), s) == 1
-    }),
-{
-    hide(eval_comp);
-    let s = encode(f);
-    let subst_phi_f = subst(phi, z_var, mk_var(y_var));
-
-    //  Sub-formula + encoding definitions (same as above)
-    let func_f = mk_forall(y_var, mk_forall(z_var, mk_implies(
-        mk_and(phi, subst_phi_f), mk_eq(mk_var(y_var), mk_var(z_var))
-    )));
-    let range_f = mk_forall(u_var, mk_exists(v_var, mk_forall(y_var,
-        mk_iff(
-            mk_in(mk_var(y_var), mk_var(v_var)),
-            mk_exists(x_var, mk_and(mk_in(mk_var(x_var), mk_var(u_var)), phi))
-        )
-    )));
-    let fz_body_f = mk_implies(mk_and(phi, subst_phi_f), mk_eq(mk_var(y_var), mk_var(z_var)));
-    let iff_left_f = mk_in(mk_var(y_var), mk_var(v_var));
-    let iff_right_f = mk_exists(x_var, mk_and(mk_in(mk_var(x_var), mk_var(u_var)), phi));
-    let iff_f = mk_iff(iff_left_f, iff_right_f);
-
-    //  Encoding structure
-    lemma_encode_forall(x_var, mk_implies(func_f, range_f));
-    lemma_encode_implies(func_f, range_f);
-    lemma_encode_forall(y_var, mk_forall(z_var, fz_body_f));
-    lemma_encode_forall(z_var, fz_body_f);
-    lemma_encode_forall(u_var, mk_exists(v_var, mk_forall(y_var, iff_f)));
-    lemma_encode_exists(v_var, mk_forall(y_var, iff_f));
-
-    //  Encoding values
-    let enc_fz_body = pair(5nat, pair(
-        pair(3nat, pair(encode(phi), encode(subst_phi_f))),
-        pair(0nat, pair(y_var, z_var))));
-    let enc_fz = pair(7nat, pair(z_var, enc_fz_body));
-    let enc_func = pair(7nat, pair(y_var, enc_fz));
-    let enc_iff = pair(6nat, pair(
-        pair(1nat, pair(y_var, v_var)),
-        pair(8nat, pair(x_var, pair(3nat, pair(pair(1nat, pair(x_var, u_var)), encode(phi)))))));
-    let enc_ry = pair(7nat, pair(y_var, enc_iff));
-    let enc_rv = pair(8nat, pair(v_var, enc_ry));
-    let enc_range = pair(7nat, pair(u_var, enc_rv));
-    let enc_impl = pair(5nat, pair(enc_func, enc_range));
-
-    //  CompSpec navigation
-    let body = cs_snd(cs_snd(CompSpec::Id));
-    let func = cs_fst(cs_snd(body));
-    let range = cs_snd(cs_snd(body));
-    let x = cs_fst(cs_snd(CompSpec::Id));
-    let y = cs_fst(cs_snd(func));
-    let func_inner = cs_snd(cs_snd(func));
-    let z = cs_fst(cs_snd(func_inner));
-    let u = cs_fst(cs_snd(range));
-    let range_exists = cs_snd(cs_snd(range));
-    let v = cs_fst(cs_snd(range_exists));
-
-    //  Navigate to var values
-    assert(eval_comp(x, s) == x_var &&
-           eval_comp(y, s) == y_var &&
-           eval_comp(z, s) == z_var) by {
-        reveal(eval_comp);
-        lemma_eval_snd(CompSpec::Id, s);
-        lemma_unpair2_pair(7nat, pair(x_var, enc_impl));
-        lemma_eval_fst(cs_snd(CompSpec::Id), s);
-        lemma_unpair1_pair(x_var, enc_impl);
-        lemma_eval_snd(cs_snd(CompSpec::Id), s);
-        lemma_unpair2_pair(x_var, enc_impl);
-        lemma_eval_snd(body, s);
-        lemma_unpair2_pair(5nat, pair(enc_func, enc_range));
-        lemma_eval_fst(cs_snd(body), s);
-        lemma_unpair1_pair(enc_func, enc_range);
-        lemma_eval_snd(func, s);
-        lemma_unpair2_pair(7nat, pair(y_var, enc_fz));
-        lemma_eval_fst(cs_snd(func), s);
-        lemma_unpair1_pair(y_var, enc_fz);
-        lemma_eval_snd(cs_snd(func), s);
-        lemma_unpair2_pair(y_var, enc_fz);
-        lemma_eval_snd(func_inner, s);
-        lemma_unpair2_pair(7nat, pair(z_var, enc_fz_body));
-        lemma_eval_fst(cs_snd(func_inner), s);
-        lemma_unpair1_pair(z_var, enc_fz_body);
-    }
-
-    assert(eval_comp(u, s) == u_var &&
-           eval_comp(v, s) == v_var) by {
-        reveal(eval_comp);
-        lemma_eval_snd(cs_snd(body), s);
-        lemma_unpair2_pair(enc_func, enc_range);
-        lemma_eval_snd(range, s);
-        lemma_unpair2_pair(7nat, pair(u_var, enc_rv));
-        lemma_eval_fst(cs_snd(range), s);
-        lemma_unpair1_pair(u_var, enc_rv);
-        lemma_eval_snd(cs_snd(range), s);
-        lemma_unpair2_pair(u_var, enc_rv);
-        lemma_eval_snd(range_exists, s);
-        lemma_unpair2_pair(8nat, pair(v_var, enc_ry));
-        lemma_eval_fst(cs_snd(range_exists), s);
-        lemma_unpair1_pair(v_var, enc_ry);
-    }
-
-    //  Distinct checks: cs_not(cs_eq(a, b)) = 1 when a != b
-    assert(eval_comp(cs_not(cs_eq(x, y)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(x, y), s); lemma_eval_eq(x, y, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(x, z)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(x, z), s); lemma_eval_eq(x, z, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(y, z)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(y, z), s); lemma_eval_eq(y, z, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(u, x)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, x), s); lemma_eval_eq(u, x, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(u, y)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, y), s); lemma_eval_eq(u, y, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(v, x)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(v, x), s); lemma_eval_eq(v, x, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(v, y)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(v, y), s); lemma_eval_eq(v, y, s);
-    }
-    assert(eval_comp(cs_not(cs_eq(u, v)), s) == 1) by {
-        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, v), s); lemma_eval_eq(u, v, s);
-    }
-}
-
-//  ====================================================================
-//  Compose all check groups
+//  Compose: distinct checks + chain composition + final composition
 //  ====================================================================
 
 #[verifier::rlimit(500)]
@@ -692,14 +528,12 @@ proof fn replacement_compose(
 {
     hide(eval_comp);
 
-    //  Get tag/var/phi/subst evaluations
+    //  Get tag/var/phi/subst evaluations + variable values
     replacement_tags_vars_phi_subst(f, phi, x_var, y_var, z_var, u_var, v_var);
-    //  Get distinct evaluations
-    replacement_distinct_checks(f, phi, x_var, y_var, z_var, u_var, v_var);
 
     let s = encode(f);
 
-    //  Re-define CompSpec navigation (same as check_replacement_axiom)
+    //  CompSpec navigation (same as check_replacement_axiom)
     let body = cs_snd(cs_snd(CompSpec::Id));
     let func = cs_fst(cs_snd(body));
     let range = cs_snd(cs_snd(body));
@@ -724,7 +558,34 @@ proof fn replacement_compose(
     let range_and = cs_snd(cs_snd(iff_right));
     let phi_prime = cs_snd(cs_snd(range_and));
 
-    //  ---- Build tag_checks ----
+    //  ---- Prove distinct checks using variable values from helper ----
+    //  Helper ensures: eval_comp(x, s) == x_var, eval_comp(y, s) == y_var, etc.
+    assert(eval_comp(cs_not(cs_eq(x, y)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(x, y), s); lemma_eval_eq(x, y, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(x, z)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(x, z), s); lemma_eval_eq(x, z, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(y, z)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(y, z), s); lemma_eval_eq(y, z, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(u, x)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, x), s); lemma_eval_eq(u, x, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(u, y)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, y), s); lemma_eval_eq(u, y, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(v, x)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(v, x), s); lemma_eval_eq(v, x, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(v, y)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(v, y), s); lemma_eval_eq(v, y, s);
+    }
+    assert(eval_comp(cs_not(cs_eq(u, v)), s) == 1) by {
+        reveal(eval_comp); lemma_eval_cs_not(cs_eq(u, v), s); lemma_eval_eq(u, v, s);
+    }
+
+    //  ---- Build check group expressions ----
     let tc15 = cs_and(cs_eq(cs_fst(cs_fst(cs_snd(range_and))), cs_const(1)), cs_const(1));
     let tc14 = cs_and(cs_eq(cs_fst(range_and), cs_const(3)), tc15);
     let tc13 = cs_and(cs_eq(cs_fst(iff_right), cs_const(8)), tc14);
@@ -741,7 +602,6 @@ proof fn replacement_compose(
     let tc2 = cs_and(cs_eq(cs_fst(body), cs_const(5)), tc3);
     let tag_checks = cs_and(cs_eq(cs_fst(CompSpec::Id), cs_const(7)), tc2);
 
-    //  ---- Build var_checks ----
     let vc8 = cs_and(cs_eq(cs_snd(cs_snd(cs_fst(cs_snd(range_and)))), u), cs_const(1));
     let vc7 = cs_and(cs_eq(cs_fst(cs_snd(cs_fst(cs_snd(range_and)))), x), vc8);
     let vc6 = cs_and(cs_eq(cs_snd(cs_snd(iff_left)), v), vc7);
@@ -751,13 +611,9 @@ proof fn replacement_compose(
     let vc2 = cs_and(cs_eq(x_prime, x), vc3);
     let var_checks = cs_and(cs_eq(y_prime, y), vc2);
 
-    //  ---- Phi check ----
     let phi_check = cs_eq(phi_cs, phi_prime);
-
-    //  ---- Subst check ----
     let subst_check = cs_comp(check_subst_comp(), cs_pair(phi_cs, cs_pair(subst_phi, z)));
 
-    //  ---- Build distinct_checks ----
     let dc8 = cs_not(cs_eq(u, v));
     let dc7 = cs_and(cs_not(cs_eq(v, y)), dc8);
     let dc6 = cs_and(cs_not(cs_eq(v, x)), dc7);
@@ -767,7 +623,7 @@ proof fn replacement_compose(
     let dc2 = cs_and(cs_not(cs_eq(x, z)), dc3);
     let distinct_checks = cs_and(cs_not(cs_eq(x, y)), dc2);
 
-    //  ---- Compose tag_checks ----
+    //  ---- Compose tag_checks chain ----
     assert(eval_comp(tag_checks, s) != 0) by {
         reveal(eval_comp);
         lemma_eval_cs_and(cs_eq(cs_fst(cs_fst(cs_snd(range_and))), cs_const(1)), cs_const(1), s);
@@ -787,7 +643,7 @@ proof fn replacement_compose(
         lemma_eval_cs_and(cs_eq(cs_fst(CompSpec::Id), cs_const(7)), tc2, s);
     }
 
-    //  ---- Compose var_checks ----
+    //  ---- Compose var_checks chain ----
     assert(eval_comp(var_checks, s) != 0) by {
         reveal(eval_comp);
         lemma_eval_cs_and(cs_eq(cs_snd(cs_snd(cs_fst(cs_snd(range_and)))), u), cs_const(1), s);
@@ -800,7 +656,7 @@ proof fn replacement_compose(
         lemma_eval_cs_and(cs_eq(y_prime, y), vc2, s);
     }
 
-    //  ---- Compose distinct_checks ----
+    //  ---- Compose distinct_checks chain ----
     assert(eval_comp(distinct_checks, s) != 0) by {
         reveal(eval_comp);
         lemma_eval_cs_and(cs_not(cs_eq(v, y)), dc8, s);
@@ -812,42 +668,29 @@ proof fn replacement_compose(
         lemma_eval_cs_and(cs_not(cs_eq(x, y)), dc2, s);
     }
 
-    //  ---- Bridge: explicitly assert helper-provided facts ----
-    //  (helps Z3 match helper ensures with local CompSpec variables)
+    //  ---- Final composition via nonlinear_arith ----
     assert(eval_comp(subst_check, s) != 0);
-    assert(eval_comp(phi_check, s) == 1);
+    assert(eval_comp(phi_check, s) != 0);
 
-    //  ---- Final composition ----
-    //  Use nonlinear_arith to help Z3 with nat multiplication: a*b != 0 when a,b > 0
     lemma_eval_cs_and(subst_check, distinct_checks, s);
     assert(eval_comp(cs_and(subst_check, distinct_checks), s) != 0) by (nonlinear_arith)
-        requires
-            eval_comp(subst_check, s) > 0,
-            eval_comp(distinct_checks, s) > 0,
+        requires eval_comp(subst_check, s) > 0, eval_comp(distinct_checks, s) > 0,
             eval_comp(cs_and(subst_check, distinct_checks), s) == eval_comp(subst_check, s) * eval_comp(distinct_checks, s);
 
     lemma_eval_cs_and(phi_check, cs_and(subst_check, distinct_checks), s);
     assert(eval_comp(cs_and(phi_check, cs_and(subst_check, distinct_checks)), s) != 0) by (nonlinear_arith)
-        requires
-            eval_comp(phi_check, s) > 0,
-            eval_comp(cs_and(subst_check, distinct_checks), s) > 0,
+        requires eval_comp(phi_check, s) > 0, eval_comp(cs_and(subst_check, distinct_checks), s) > 0,
             eval_comp(cs_and(phi_check, cs_and(subst_check, distinct_checks)), s) == eval_comp(phi_check, s) * eval_comp(cs_and(subst_check, distinct_checks), s);
 
     lemma_eval_cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks)), s);
     assert(eval_comp(cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s) != 0) by (nonlinear_arith)
-        requires
-            eval_comp(var_checks, s) > 0,
-            eval_comp(cs_and(phi_check, cs_and(subst_check, distinct_checks)), s) > 0,
+        requires eval_comp(var_checks, s) > 0, eval_comp(cs_and(phi_check, cs_and(subst_check, distinct_checks)), s) > 0,
             eval_comp(cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s) == eval_comp(var_checks, s) * eval_comp(cs_and(phi_check, cs_and(subst_check, distinct_checks)), s);
 
     lemma_eval_cs_and(tag_checks, cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s);
     assert(eval_comp(cs_and(tag_checks, cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks)))), s) != 0) by (nonlinear_arith)
-        requires
-            eval_comp(tag_checks, s) > 0,
-            eval_comp(cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s) > 0,
+        requires eval_comp(tag_checks, s) > 0, eval_comp(cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s) > 0,
             eval_comp(cs_and(tag_checks, cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks)))), s) == eval_comp(tag_checks, s) * eval_comp(cs_and(var_checks, cs_and(phi_check, cs_and(subst_check, distinct_checks))), s);
-
-    //  This equals check_replacement_axiom()
 }
 
 //  ====================================================================

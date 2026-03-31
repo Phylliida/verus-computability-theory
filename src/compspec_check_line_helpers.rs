@@ -117,10 +117,7 @@ proof fn check_line_assumption(p: Proof, i: nat)
     requires
         i < p.lines.len(),
         p.lines[i as int].1 == Justification::Assumption,
-        p.lines[i as int].0 == extensionality_axiom() || p.lines[i as int].0 == pairing_axiom()
-        || p.lines[i as int].0 == union_axiom() || p.lines[i as int].0 == powerset_axiom()
-        || p.lines[i as int].0 == infinity_axiom() || p.lines[i as int].0 == foundation_axiom()
-        || p.lines[i as int].0 == choice_axiom(),
+        is_zfc_axiom(p.lines[i as int].0),
     ensures eval_comp(check_line(), pair(encode_proof(p), i)) != 0,
 {
     let s = encode_proof(p);
@@ -129,7 +126,7 @@ proof fn check_line_assumption(p: Proof, i: nat)
     let formula_enc = encode(formula);
     let lines = Seq::new(p.lines.len(), |j: int| encode_line(p.lines[j]));
 
-    lemma_check_zfc_fixed_axiom_correct(formula);
+    lemma_check_zfc_axiom_correct(formula);
     lemma_seq_elem_correct(lines, i);
     lemma_eval_fst(seq_elem_comp(), input);
     lemma_unpair1_pair(formula_enc, encode_justification(Justification::Assumption));
@@ -343,15 +340,6 @@ pub proof fn lemma_check_line_valid(p: Proof, i: nat)
     requires
         i < p.lines.len(),
         line_valid(p, i, |f: Formula| is_zfc_axiom(f)),
-        //  Restriction: for Assumption lines, only fixed ZFC axioms
-        (p.lines[i as int].1 == Justification::Assumption ==>
-            (p.lines[i as int].0 == extensionality_axiom()
-            || p.lines[i as int].0 == pairing_axiom()
-            || p.lines[i as int].0 == union_axiom()
-            || p.lines[i as int].0 == powerset_axiom()
-            || p.lines[i as int].0 == infinity_axiom()
-            || p.lines[i as int].0 == foundation_axiom()
-            || p.lines[i as int].0 == choice_axiom())),
     ensures
         eval_comp(check_line(), pair(encode_proof(p), i)) != 0,
 {
