@@ -1232,37 +1232,65 @@ pub open spec fn check_all_lines() -> CompSpec {
 ///  Stack is encoded as a nat sequence (0=empty, pair(elem+1, rest)=non-empty).
 ///  Each element is pair(sub_formula_enc, is_bound_flag) where is_bound_flag=1 if v is bound here.
 ///  Returns nonzero if v is free in f_enc.
-#[verifier::opaque]
-///  Step function for has_free_var_comp's BoundedRec.
-///  Input: pair(i, pair(acc, pair(f_enc, v)))
-///  acc = pair(stack, found)
-///  If found != 0 or stack empty: keep acc.
-///  Else: pop top formula, dispatch on tag, check/push sub-formulas.
-pub open spec fn has_free_var_step() -> CompSpec {
-    let acc = br_acc();                          //  pair(stack, found)
+///  Handle binary formulas (tags 3-6) and quantifiers (tags 7-8) in has_free_var.
+///  For binary: push both sub-formulas onto stack.
+///  For quantifier: if bound var == v, skip; else push sub.
+///  NOTE: Defined FIRST (leaf of dependency chain) for Z3 axiom ordering.
+pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
+    let acc = br_acc();
     let stack = cs_fst(acc);
-    let found = cs_snd(acc);
-    let v = cs_snd(cs_snd(cs_snd(CompSpec::Id)));  //  v from original input
+    let v = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
+    let top_enc = cs_comp(CompSpec::Pred, cs_fst(stack));
+    let rest = cs_snd(stack);
+    let tag = cs_fst(top_enc);
+    let content = cs_snd(top_enc);
 
-    //  If found != 0: keep acc (already found free occurrence)
+    let tag_minus_3 = cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, tag)));
+
     CompSpec::IfZero {
-        cond: Box::new(found),
-        //  found == 0: check the stack
-        then_br: Box::new(CompSpec::IfZero {
-            cond: Box::new(cs_fst(stack)),  //  unpair1(stack) == 0 means empty
-            //  stack empty: keep acc (done, not found)
-            then_br: Box::new(acc),
-            //  stack non-empty: pop and process
-            else_br: Box::new(has_free_var_process_top()),
+        cond: Box::new(cs_lt(tag_minus_3, cs_const(4))),
+        then_br: Box::new(
+            CompSpec::IfZero {
+                cond: Box::new(cs_eq(cs_fst(content), v)),
+                then_br: Box::new(CompSpec::CantorPair {
+                    left: Box::new(CompSpec::CantorPair {
+                        left: Box::new(CompSpec::Add {
+                            left: Box::new(cs_snd(content)),
+                            right: Box::new(cs_const(1)),
+                        }),
+                        right: Box::new(rest),
+                    }),
+                    right: Box::new(cs_const(0)),
+                }),
+                else_br: Box::new(CompSpec::CantorPair {
+                    left: Box::new(rest),
+                    right: Box::new(cs_const(0)),
+                }),
+            }
+        ),
+        else_br: Box::new(CompSpec::CantorPair {
+            left: Box::new(CompSpec::CantorPair {
+                left: Box::new(CompSpec::Add {
+                    left: Box::new(cs_fst(content)),
+                    right: Box::new(cs_const(1)),
+                }),
+                right: Box::new(CompSpec::CantorPair {
+                    left: Box::new(CompSpec::Add {
+                        left: Box::new(cs_snd(content)),
+                        right: Box::new(cs_const(1)),
+                    }),
+                    right: Box::new(rest),
+                }),
+            }),
+            right: Box::new(cs_const(0)),
         }),
-        //  found != 0: keep acc
-        else_br: Box::new(acc),
     }
 }
 
 ///  Process the top formula from the stack in has_free_var.
 ///  Input: pair(i, pair(pair(stack, 0), pair(f_enc, v)))
 ///  stack is non-empty. Pop top, dispatch on tag.
+///  NOTE: Defined AFTER has_free_var_binary_or_quantifier (dependency order).
 pub open spec fn has_free_var_process_top() -> CompSpec {
     let acc = br_acc();
     let stack = cs_fst(acc);
@@ -1321,72 +1349,22 @@ pub open spec fn has_free_var_process_top() -> CompSpec {
     }
 }
 
-///  Handle binary formulas (tags 3-6) and quantifiers (tags 7-8) in has_free_var.
-///  For binary: push both sub-formulas onto stack.
-///  For quantifier: if bound var == v, skip; else push sub.
-pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
+///  Step function for has_free_var_comp's BoundedRec.
+///  NOTE: Defined AFTER has_free_var_process_top (dependency order).
+pub open spec fn has_free_var_step() -> CompSpec {
     let acc = br_acc();
     let stack = cs_fst(acc);
+    let found = cs_snd(acc);
     let v = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
-    let top_enc = cs_comp(CompSpec::Pred, cs_fst(stack));
-    let rest = cs_snd(stack);
-    let tag = cs_fst(top_enc);
-    let content = cs_snd(top_enc);
-
-    //  Tags 3-6: binary. Push both fst(content) and snd(content) onto rest.
-    //  Tags 7-8: quantifier. fst(content) = bound_var, snd(content) = sub.
-    //    If bound_var == v: pair(rest, 0)  (v is bound, skip)
-    //    Else: push snd(content) onto rest
-
-    //  Check if tag <= 6 (binary) vs >= 7 (quantifier)
-    //  tag - 3 < 4 means tag <= 6 (binary)
-    //  We already know tag >= 3 from the dispatch chain
-    let tag_minus_3 = cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, tag)));
 
     CompSpec::IfZero {
-        cond: Box::new(cs_lt(tag_minus_3, cs_const(4))),
-        //  tag - 3 >= 4 means tag >= 7: quantifier
-        //  (IfZero: cond==0 means lt returned 0 means NOT less than 4)
-        then_br: Box::new(
-            //  Quantifier: check if bound_var == v
-            CompSpec::IfZero {
-                cond: Box::new(cs_eq(cs_fst(content), v)),
-                //  bound_var != v: push sub
-                then_br: Box::new(CompSpec::CantorPair {
-                    left: Box::new(CompSpec::CantorPair {
-                        left: Box::new(CompSpec::Add {
-                            left: Box::new(cs_snd(content)),
-                            right: Box::new(cs_const(1)),
-                        }),
-                        right: Box::new(rest),
-                    }),
-                    right: Box::new(cs_const(0)),
-                }),
-                //  bound_var == v: skip (v is bound here)
-                else_br: Box::new(CompSpec::CantorPair {
-                    left: Box::new(rest),
-                    right: Box::new(cs_const(0)),
-                }),
-            }
-        ),
-        //  tag - 3 < 4 means tag <= 6: binary
-        else_br: Box::new(CompSpec::CantorPair {
-            //  Push both sub-formulas: pair(left+1, pair(right+1, rest))
-            left: Box::new(CompSpec::CantorPair {
-                left: Box::new(CompSpec::Add {
-                    left: Box::new(cs_fst(content)),
-                    right: Box::new(cs_const(1)),
-                }),
-                right: Box::new(CompSpec::CantorPair {
-                    left: Box::new(CompSpec::Add {
-                        left: Box::new(cs_snd(content)),
-                        right: Box::new(cs_const(1)),
-                    }),
-                    right: Box::new(rest),
-                }),
-            }),
-            right: Box::new(cs_const(0)),
+        cond: Box::new(found),
+        then_br: Box::new(CompSpec::IfZero {
+            cond: Box::new(cs_fst(stack)),
+            then_br: Box::new(acc),
+            else_br: Box::new(has_free_var_process_top()),
         }),
+        else_br: Box::new(acc),
     }
 }
 
@@ -1395,13 +1373,15 @@ pub open spec fn has_free_var_comp() -> CompSpec {
     //  Result: found flag (nonzero if v is free in the formula encoded by f_enc)
     //  NOTE: Defined AFTER has_free_var_step/process_top/binary_or_quantifier
     //  to ensure Z3 axiom ordering matches dependency order.
+    //  Fuel is f_enc + 1 to ensure at least 1 step even when f_enc == 0.
     let f_enc_expr = cs_fst(CompSpec::Id);
+    let f_enc_plus_1 = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
     let stack_entry = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
 
     cs_comp(
         cs_snd(CompSpec::Id),
         CompSpec::BoundedRec {
-            count_fn: Box::new(f_enc_expr),
+            count_fn: Box::new(f_enc_plus_1),
             base: Box::new(cs_pair(
                 cs_pair(stack_entry, cs_const(0)),
                 cs_const(0))),

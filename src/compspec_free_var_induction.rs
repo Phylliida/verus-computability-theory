@@ -192,19 +192,19 @@ pub proof fn lemma_hfv_found_zero(
 }
 
 ///  Unfolding helper: delegates to compspec_hfv_unfold.
+///  Fuel is f_enc + 1 (ensures at least 1 step).
 pub proof fn lemma_hfv_unfold(f_enc: nat, v: nat)
     ensures ({
         let input = pair(f_enc, v);
         let base_val = pair(pair(f_enc + 1, 0nat), 0nat);
         eval_comp(has_free_var_comp(), input)
-            == unpair2(compspec_iterate(has_free_var_step(), f_enc, base_val, input))
+            == unpair2(compspec_iterate(has_free_var_step(), (f_enc + 1) as nat, base_val, input))
     }),
 {
     crate::compspec_hfv_unfold::lemma_hfv_comp_eval(f_enc, v);
 }
 
 ///  Top-level: has_free_var_comp() returns 0 for sentences.
-///  Isolated here to avoid trigger pollution from compspec_halts.rs.
 pub proof fn lemma_has_free_var_sentence_core(f: Formula, v: nat)
     requires
         is_sentence(f),
@@ -215,7 +215,8 @@ pub proof fn lemma_has_free_var_sentence_core(f: Formula, v: nat)
     lemma_sentence_no_free_var(f, v);
     lemma_hfv_unfold(f_enc, v);
     lemma_sentence_encode_ge_cost(f, v);
-    lemma_hfv_found_zero(f, v, f_enc, f_enc);
+    //  fuel = f_enc + 1 >= f_enc >= traversal_cost
+    lemma_hfv_found_zero(f, v, f_enc, (f_enc + 1) as nat);
 }
 
 ///  General: has_free_var_comp() returns 0 when var is not free in formula.
@@ -228,13 +229,11 @@ pub proof fn lemma_has_free_var_general(f: Formula, v: nat)
 {
     let f_enc = encode(f);
     lemma_hfv_unfold(f_enc, v);
-    if f_enc == 0 {
-        //  0 fuel: compspec_iterate returns base, found = 0
-        lemma_unpair2_pair(pair(1nat, 0nat), 0nat);
-    } else {
+    //  fuel = f_enc + 1 always >= traversal_cost(f, v) >= 1
+    if f_enc > 0 {
         lemma_encode_ge_cost_inner(f, v);
-        lemma_hfv_found_zero(f, v, f_enc, f_enc);
     }
+    lemma_hfv_found_zero(f, v, f_enc, (f_enc + 1) as nat);
 }
 
 } //  verus!

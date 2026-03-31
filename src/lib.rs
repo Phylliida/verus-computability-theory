@@ -122,6 +122,12 @@ pub mod compspec_hfv_unfold;
 pub mod compspec_free_var_detection;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_free_var_detection2;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_checkers4;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]

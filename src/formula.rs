@@ -1067,6 +1067,7 @@ pub proof fn lemma_encode_decode_formula(n: nat)
     //  So encode(decode_formula(n)) == encode(decode_formula(encode(f))) == encode(f) == n
 }
 
+
 //  ============================================================
 //  Eq-subst compatibility: two formulas with same structure,
 //  differing only at term positions where one has x and other has y.
