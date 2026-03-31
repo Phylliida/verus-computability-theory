@@ -119,6 +119,9 @@ pub mod compspec_eq_subst_backward;
 pub mod compspec_hfv_unfold;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_free_var_detection;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
