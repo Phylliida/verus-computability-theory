@@ -26,13 +26,14 @@ proof fn decode_iff(enc: nat)
     lemma_pair_surjective(enc);
 }
 
-#[verifier::rlimit(800)]
+#[verifier::rlimit(1500)]
 pub proof fn lemma_check_iff_intro_forward(enc: nat)
     requires eval_comp(check_axiom_iff_intro(), enc) != 0,
     ensures is_axiom_iff_intro(decode_formula(enc)),
 {
     hide(eval_comp);
     hide(decode_formula);
+    hide(check_axiom_iff_intro);
     iff_intro_structure(enc);
     let l_enc = unpair1(unpair2(enc));
     let r_enc = unpair2(unpair2(enc));
