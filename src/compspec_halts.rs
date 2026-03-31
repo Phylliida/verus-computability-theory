@@ -1235,17 +1235,18 @@ pub open spec fn check_all_lines() -> CompSpec {
 #[verifier::opaque]
 pub open spec fn has_free_var_comp() -> CompSpec {
     //  Input: pair(f_enc, v)
-    //  BoundedRec: count = f_enc (upper bound on tree traversal steps)
+    //  BoundedRec: count = f_enc + 1 (ensures at least 1 step even when f_enc == 0)
     //  base = pair(pair(f_enc + 1, 0), 0)  //  stack = [f_enc], found = 0
     //  The stack encodes formulas to check. Each elem is sub_formula_enc.
     //  After loop: found flag
     let f_enc_expr = cs_fst(CompSpec::Id);  //  f_enc from input
+    let f_enc_plus_1 = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
     let v_expr = cs_snd(CompSpec::Id);       //  v from input
 
     cs_comp(
         cs_snd(CompSpec::Id),  //  extract found from final pair(stack, found)
         CompSpec::BoundedRec {
-            count_fn: Box::new(f_enc_expr),
+            count_fn: Box::new(f_enc_plus_1),
             base: Box::new(CompSpec::CantorPair {
                 //  Initial stack: single-element sequence with f_enc
                 left: Box::new(CompSpec::CantorPair {
