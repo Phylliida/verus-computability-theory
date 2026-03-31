@@ -130,13 +130,22 @@ proof fn vacuous_quant_structure(enc: nat)
     }
 }
 
-//  Main forward proof
+//  Main forward proof.
+//  Precondition: enc must be a valid formula encoding (exists f with encode(f) == enc).
+//  This is naturally satisfied in the assembly since enc comes from encode(proof_line_formula).
 pub proof fn lemma_check_vacuous_quant_forward(enc: nat)
-    requires eval_comp(check_axiom_vacuous_quant(), enc) != 0,
+    requires
+        eval_comp(check_axiom_vacuous_quant(), enc) != 0,
+        exists|f: Formula| encode(f) == enc,
     ensures is_axiom_vacuous_quant(decode_formula(enc)),
 {
     hide(eval_comp);
     hide(decode_formula);
+
+    //  Get the formula witness
+    let outer_f: Formula = choose|f: Formula| encode(f) == enc;
+    lemma_decode_encode_formula(outer_f);
+    //  decode_formula(enc) == outer_f
 
     vacuous_quant_structure(enc);
 
@@ -151,12 +160,29 @@ pub proof fn lemma_check_vacuous_quant_forward(enc: nat)
 
     //  phi_enc == body_enc → same decoded formula
     assert(phi_enc == body_enc);
+
+    //  Since enc = encode(outer_f), phi_enc = encode of the left sub-formula
+    //  This means phi_enc is in the range of encode
+    assert(exists|f: Formula| encode(f) == phi_enc) by {
+        lemma_encode_is_pair(outer_f);
+        match outer_f {
+            Formula::Implies { left, right } => {
+                lemma_unpair1_pair(5nat, pair(encode(*left), encode(*right)));
+                lemma_unpair2_pair(5nat, pair(encode(*left), encode(*right)));
+                lemma_unpair1_pair(encode(*left), encode(*right));
+                assert(phi_enc == encode(*left));
+            },
+            _ => {},
+        }
+    }
+
     let phi = decode_formula(phi_enc);
+    lemma_encode_decode_formula(phi_enc);
+    //  encode(phi) == phi_enc
 
     //  has_free_var_comp says var not free in phi
     assert(!has_free_var(phi, var)) by {
         reveal(eval_comp);
-        lemma_decode_encode_formula(phi);
         lemma_has_free_var_comp_sound(phi, var);
     }
 
