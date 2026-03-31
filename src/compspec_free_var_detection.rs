@@ -17,136 +17,10 @@ verus! {
 //  Step helper: Eq with var found — reuse existing lemma_step_eq's infrastructure.
 //  The existing lemma_step_eq requires left_idx != v && right_idx != v (no free var).
 //  For detection, at least one equals v, so the result's found field is nonzero.
-#[verifier::rlimit(800)]
-proof fn lemma_step_eq_found(
-    left_idx: nat, right_idx: nat, v: nat,
-    rest: nat, f_enc: nat, i: nat,
-)
-    requires left_idx == v || right_idx == v,
-    ensures ({
-        let enc = pair(0nat, pair(left_idx, right_idx));
-        let stack = pair(enc + 1, rest);
-        let acc = pair(stack, 0nat);
-        let input = pair(i, pair(acc, pair(f_enc, v)));
-        let result = eval_comp(has_free_var_step(), input);
-        unpair2(result) != 0
-    }),
-{
-    let enc = pair(0nat, pair(left_idx, right_idx));
-    let stack = pair(enc + 1, rest);
-    let acc = pair(stack, 0nat);
-    let input = pair(i, pair(acc, pair(f_enc, v)));
-
-    lemma_step_to_process_top(i, enc + 1, rest, f_enc, v);
-    //  eval(step, input) == eval(process_top, input)
-
-    //  Provide key intermediate values for process_top evaluation:
-    //  acc, stack, top_enc, tag, content, v
-    lemma_eval_br_acc(i, acc, pair(f_enc, v));
-    lemma_eval_fst(br_acc(), input);
-    lemma_unpair1_pair(stack, 0nat);
-    lemma_eval_fst(cs_fst(br_acc()), input);
-    lemma_unpair1_pair(enc + 1, rest);
-    lemma_eval_snd(cs_fst(br_acc()), input);
-    lemma_unpair2_pair(enc + 1, rest);
-    //  top_enc = Pred(enc+1) = enc = pair(0, pair(left_idx, right_idx))
-    lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), input);
-    lemma_eval_pred(enc + 1);
-    let top_enc_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
-    //  tag = fst(enc) = 0
-    lemma_eval_fst(top_enc_cs, input);
-    lemma_unpair1_pair(0nat, pair(left_idx, right_idx));
-    //  content = snd(enc) = pair(left_idx, right_idx)
-    lemma_eval_snd(top_enc_cs, input);
-    lemma_unpair2_pair(0nat, pair(left_idx, right_idx));
-    //  v
-    lemma_eval_snd(CompSpec::Id, input);
-    lemma_unpair2_pair(i, pair(acc, pair(f_enc, v)));
-    lemma_eval_snd(cs_snd(CompSpec::Id), input);
-    lemma_unpair2_pair(acc, pair(f_enc, v));
-    lemma_eval_snd(cs_snd(cs_snd(CompSpec::Id)), input);
-    lemma_unpair2_pair(f_enc, v);
-    //  term values
-    let content_cs = cs_snd(top_enc_cs);
-    let v_cs = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
-    lemma_eval_fst(content_cs, input);
-    lemma_unpair1_pair(left_idx, right_idx);
-    lemma_eval_snd(content_cs, input);
-    lemma_unpair2_pair(left_idx, right_idx);
-    //  found = or(eq(left, v), eq(right, v))
-    lemma_eval_eq(cs_fst(content_cs), v_cs, input);
-    lemma_eval_eq(cs_snd(content_cs), v_cs, input);
-    let eq_l = cs_eq(cs_fst(content_cs), v_cs);
-    let eq_r = cs_eq(cs_snd(content_cs), v_cs);
-    lemma_eval_add(eq_l, eq_r, input);
-    //  result pair
-    lemma_eval_pair(cs_snd(cs_fst(br_acc())), cs_or(eq_l, eq_r), input);
-    lemma_unpair2_pair(rest, eval_comp(eq_l, input) + eval_comp(eq_r, input));
-}
-
-//  Step helper: In with var found.
-#[verifier::rlimit(1500)]
-proof fn lemma_step_in_found(
-    left_idx: nat, right_idx: nat, v: nat,
-    rest: nat, f_enc: nat, i: nat,
-)
-    requires left_idx == v || right_idx == v,
-    ensures ({
-        let enc = pair(1nat, pair(left_idx, right_idx));
-        let stack = pair(enc + 1, rest);
-        let acc = pair(stack, 0nat);
-        let input = pair(i, pair(acc, pair(f_enc, v)));
-        let result = eval_comp(has_free_var_step(), input);
-        unpair2(result) != 0
-    }),
-{
-    let enc = pair(1nat, pair(left_idx, right_idx));
-    let stack = pair(enc + 1, rest);
-    let acc = pair(stack, 0nat);
-    let input = pair(i, pair(acc, pair(f_enc, v)));
-
-    lemma_step_to_process_top(i, enc + 1, rest, f_enc, v);
-
-    lemma_eval_br_acc(i, acc, pair(f_enc, v));
-    lemma_eval_fst(br_acc(), input);
-    lemma_unpair1_pair(stack, 0nat);
-    lemma_eval_fst(cs_fst(br_acc()), input);
-    lemma_unpair1_pair(enc + 1, rest);
-    lemma_eval_snd(cs_fst(br_acc()), input);
-    lemma_unpair2_pair(enc + 1, rest);
-    lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), input);
-    lemma_eval_pred(enc + 1);
-    let top_enc_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
-    //  tag = 1
-    lemma_eval_fst(top_enc_cs, input);
-    lemma_unpair1_pair(1nat, pair(left_idx, right_idx));
-    //  Pred(1) = 0 → In branch
-    let tag_cs = cs_fst(top_enc_cs);
-    lemma_eval_comp(CompSpec::Pred, tag_cs, input);
-    lemma_eval_pred(1nat);
-    //  content, v, terms, found
-    lemma_eval_snd(top_enc_cs, input);
-    lemma_unpair2_pair(1nat, pair(left_idx, right_idx));
-    lemma_eval_snd(CompSpec::Id, input);
-    lemma_unpair2_pair(i, pair(acc, pair(f_enc, v)));
-    lemma_eval_snd(cs_snd(CompSpec::Id), input);
-    lemma_unpair2_pair(acc, pair(f_enc, v));
-    lemma_eval_snd(cs_snd(cs_snd(CompSpec::Id)), input);
-    lemma_unpair2_pair(f_enc, v);
-    let content_cs = cs_snd(top_enc_cs);
-    let v_cs = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
-    lemma_eval_fst(content_cs, input);
-    lemma_unpair1_pair(left_idx, right_idx);
-    lemma_eval_snd(content_cs, input);
-    lemma_unpair2_pair(left_idx, right_idx);
-    lemma_eval_eq(cs_fst(content_cs), v_cs, input);
-    lemma_eval_eq(cs_snd(content_cs), v_cs, input);
-    let eq_l = cs_eq(cs_fst(content_cs), v_cs);
-    let eq_r = cs_eq(cs_snd(content_cs), v_cs);
-    lemma_eval_add(eq_l, eq_r, input);
-    lemma_eval_pair(cs_snd(cs_fst(br_acc())), cs_or(eq_l, eq_r), input);
-    lemma_unpair2_pair(rest, eval_comp(eq_l, input) + eval_comp(eq_r, input));
-}
+//  Atomic step helpers (Eq/In detection) are in compspec_free_var_detection2.rs
+//  (module isolation per rlimit tips — sibling body pollution).
+use crate::compspec_free_var_detection2::lemma_step_eq_found;
+use crate::compspec_free_var_detection2::lemma_step_in_found;
 
 //  Iterate stability: when found != 0, iterate preserves found.
 proof fn lemma_csi_found_stable(fuel: nat, stack: nat, found: nat, f_enc: nat, v: nat)
@@ -327,40 +201,40 @@ pub proof fn lemma_hfv_walk_found(
 
 //  ====================================================================
 //  Wrapper: has_free_var(f, v) → has_free_var_comp(encode(f), v) != 0
-//  (when encode(f) > 0)
+//  No encode != 0 precondition needed thanks to f_enc+1 fuel fix.
 //  ====================================================================
 
 pub proof fn lemma_has_free_var_detection(f: Formula, v: nat)
-    requires has_free_var(f, v), encode(f) != 0,
+    requires has_free_var(f, v),
     ensures eval_comp(has_free_var_comp(), pair(encode(f), v)) != 0,
 {
     let f_enc = encode(f);
     lemma_hfv_comp_eval(f_enc, v);
-    //  eval_comp(has_free_var_comp(), pair(f_enc, v))
-    //  == unpair2(compspec_iterate(step, f_enc, pair(pair(f_enc+1, 0), 0), pair(f_enc, v)))
-
-    lemma_encode_ge_formula_size(f);
+    //  eval == unpair2(compspec_iterate(step, f_enc+1, base, input))
+    //  fuel = f_enc + 1 >= detection_cost(f, v)
+    if f_enc > 0 {
+        lemma_encode_ge_formula_size(f);
+    }
     lemma_detection_cost_le_size(f, v);
-    lemma_hfv_walk_found(f, v, 0nat, f_enc, f_enc);
+    //  detection_cost <= formula_size <= f_enc (when f_enc > 0), and detection_cost >= 1
+    //  f_enc + 1 >= detection_cost always
+    lemma_hfv_walk_found(f, v, 0nat, f_enc, (f_enc + 1) as nat);
 }
 
 //  ====================================================================
-//  Full biconditional (for encode(f) > 0):
+//  Full biconditional:
 //  has_free_var_comp(encode(f), v) == 0 ↔ !has_free_var(f, v)
 //  ====================================================================
 
 ///  Forward direction for vacuous_quant: comp returns 0 → variable is not free.
 pub proof fn lemma_has_free_var_comp_sound(f: Formula, v: nat)
     requires
-        encode(f) != 0,
         eval_comp(has_free_var_comp(), pair(encode(f), v)) == 0,
     ensures !has_free_var(f, v),
 {
     //  Contrapositive of detection: has_free_var → comp != 0.
-    //  So comp == 0 → !has_free_var.
     if has_free_var(f, v) {
         lemma_has_free_var_detection(f, v);
-        //  comp != 0, contradicts requires
     }
 }
 
