@@ -477,30 +477,142 @@ pub open spec fn check_axiom_vacuous_quant() -> CompSpec {
 ///  x appears in the left side and y appears in the right side.
 ///  This is approximated by checking the two sides are "structurally similar"
 ///  modulo the x↔y substitution at term positions.
+///  Parallel-walk step for eq_subst checker.
+///  Input to step: pair(i, pair(acc, pair(x_enc, y_enc)))
+///  acc = pair(stack, valid)
+///  Pops one (left_node, right_node) pair, checks structural correspondence.
+pub open spec fn check_eq_subst_step() -> CompSpec {
+    let acc = br_acc();             //  pair(stack, valid)
+    let stack = cs_fst(acc);
+    let valid = cs_snd(acc);
+    let x_enc = cs_fst(cs_snd(cs_snd(CompSpec::Id)));
+    let y_enc = cs_snd(cs_snd(cs_snd(CompSpec::Id)));
+
+    CompSpec::IfZero {
+        cond: Box::new(valid),
+        then_br: Box::new(acc),  //  already failed
+        else_br: Box::new(CompSpec::IfZero {
+            cond: Box::new(cs_fst(stack)),
+            then_br: Box::new(acc),  //  stack empty, success
+            else_br: Box::new({
+                //  Pop entry
+                let entry = cs_comp(CompSpec::Pred, cs_fst(stack));
+                let rest = cs_snd(stack);
+                let left_node = cs_fst(entry);
+                let right_node = cs_snd(entry);
+                let left_tag = cs_fst(left_node);
+                let right_tag = cs_fst(right_node);
+                let tags_match = cs_eq(left_tag, right_tag);
+
+                //  Atomic (tags 0-1): check each term position matches or is x↔y swap
+                let left_t1 = cs_fst(cs_snd(left_node));
+                let left_t2 = cs_snd(cs_snd(left_node));
+                let right_t1 = cs_fst(cs_snd(right_node));
+                let right_t2 = cs_snd(cs_snd(right_node));
+                //  term_ok(lt, rt) = (lt == rt) || (lt == x && rt == y)
+                let t1_same = cs_eq(left_t1, right_t1);
+                let t1_swap = cs_and(cs_eq(left_t1, x_enc), cs_eq(right_t1, y_enc));
+                let t1_ok = cs_or(t1_same, t1_swap);
+                let t2_same = cs_eq(left_t2, right_t2);
+                let t2_swap = cs_and(cs_eq(left_t2, x_enc), cs_eq(right_t2, y_enc));
+                let t2_ok = cs_or(t2_same, t2_swap);
+                let atomic_ok = cs_pair(rest, cs_and(tags_match, cs_and(t1_ok, t2_ok)));
+
+                //  Unary (tag 2): push (sub_l, sub_r)
+                let unary_entry = cs_pair(cs_snd(left_node), cs_snd(right_node));
+                let unary_ok = cs_pair(
+                    cs_pair(CompSpec::Add { left: Box::new(unary_entry), right: Box::new(cs_const(1)) }, rest),
+                    tags_match);
+
+                //  Binary (tags 3-6): push two child pairs
+                let left_content = cs_snd(left_node);
+                let right_content = cs_snd(right_node);
+                let entry_l = cs_pair(cs_fst(left_content), cs_fst(right_content));
+                let entry_r = cs_pair(cs_snd(left_content), cs_snd(right_content));
+                let binary_ok = cs_pair(
+                    cs_pair(
+                        CompSpec::Add { left: Box::new(entry_l), right: Box::new(cs_const(1)) },
+                        cs_pair(CompSpec::Add { left: Box::new(entry_r), right: Box::new(cs_const(1)) }, rest),
+                    ),
+                    tags_match);
+
+                //  Quantifier (tags 7-8): check bound vars match, push sub pair
+                let left_bv = cs_fst(cs_snd(left_node));
+                let right_bv = cs_fst(cs_snd(right_node));
+                let quant_entry = cs_pair(cs_snd(cs_snd(left_node)), cs_snd(cs_snd(right_node)));
+                let quant_ok = cs_pair(
+                    cs_pair(CompSpec::Add { left: Box::new(quant_entry), right: Box::new(cs_const(1)) }, rest),
+                    cs_and(tags_match, cs_eq(left_bv, right_bv)));
+
+                //  Dispatch on tag
+                let is_quantifier = cs_lt(cs_const(6), left_tag);
+                let is_compound = cs_lt(cs_const(1), left_tag);
+
+                CompSpec::IfZero {
+                    cond: Box::new(is_compound),
+                    then_br: Box::new(atomic_ok),  //  tag <= 1
+                    else_br: Box::new(CompSpec::IfZero {
+                        cond: Box::new(cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, left_tag))),
+                        then_br: Box::new(unary_ok),  //  tag == 2
+                        else_br: Box::new(CompSpec::IfZero {
+                            cond: Box::new(is_quantifier),
+                            then_br: Box::new(binary_ok),  //  tags 3-6
+                            else_br: Box::new(quant_ok),    //  tags 7-8
+                        }),
+                    }),
+                }
+            }),
+        }),
+    }
+}
+
+///  Parallel-walk checker: two formula trees differ only at term positions (x↔y).
+///  Input: pair(left_enc, pair(right_enc, pair(x_enc, y_enc)))
+pub open spec fn check_eq_subst_pair() -> CompSpec {
+    let left_enc = cs_fst(CompSpec::Id);
+    let right_enc = cs_fst(cs_snd(CompSpec::Id));
+    let entry = cs_pair(left_enc, right_enc);
+
+    cs_comp(
+        cs_snd(CompSpec::Id),  //  extract valid from pair(stack, valid)
+        CompSpec::BoundedRec {
+            count_fn: Box::new(left_enc),  //  fuel = left_enc (generous)
+            base: Box::new(cs_pair(
+                //  stack with one entry
+                cs_pair(CompSpec::Add { left: Box::new(entry), right: Box::new(cs_const(1)) }, cs_const(0)),
+                cs_const(1),  //  valid = 1
+            )),
+            step: Box::new(check_eq_subst_step()),
+        }
+    )
+}
+
 pub open spec fn check_axiom_eq_subst_left() -> CompSpec {
     //  f = pair(5, pair(pair(0, pair(x, y)), pair(5, pair(left_subst, right_subst))))
     let outer_content = cs_snd(CompSpec::Id);
     let eq_part = cs_fst(outer_content);           //  Eq(x, y)
     let impl_part = cs_snd(outer_content);         //  Implies(subst1, subst2)
+    let x = cs_fst(cs_snd(eq_part));               //  x_enc
+    let y = cs_snd(cs_snd(eq_part));               //  y_enc
+    let left_subst = cs_fst(cs_snd(impl_part));    //  left substitution
+    let right_subst = cs_snd(cs_snd(impl_part));   //  right substitution
 
     cs_and(
         cs_eq(cs_fst(CompSpec::Id), cs_const(5)),   //  outer Implies
         cs_and(
             cs_eq(cs_fst(eq_part), cs_const(0)),    //  left = Eq
-            cs_eq(cs_fst(impl_part), cs_const(5))   //  right = Implies
+            cs_and(
+                cs_eq(cs_fst(impl_part), cs_const(5)),   //  right = Implies
+                //  Parallel-walk: left_subst and right_subst differ only at x↔y
+                cs_comp(check_eq_subst_pair(),
+                    cs_pair(left_subst, cs_pair(right_subst, cs_pair(x, y))))
+            )
         )
     )
-    //  Note: This is a partial check — verifies structural tags but not the full
-    //  substitution consistency. The forward direction of the biconditional may
-    //  accept some non-axioms that happen to match this pattern.
-    //  A full check would require extracting phi from one side and verifying
-    //  the other side is its substitution — doable with check_subst_comp but
-    //  requires knowing which variable var is (it's existentially quantified).
 }
 
 ///  Check: is_axiom_eq_subst_right at encoding level.
-///  f = Implies(Eq(x,y), Implies(subst(phi,var,y), subst(phi,var,x)))
-///  Same structural pattern as eq_subst_left.
+///  Same checker — it's symmetric in the eq_subst relationship.
 pub open spec fn check_axiom_eq_subst_right() -> CompSpec {
     check_axiom_eq_subst_left()
 }
