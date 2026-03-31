@@ -1732,26 +1732,39 @@ proof fn lemma_conclusion_check_backward(s: nat, p: Proof)
 }
 
 ///  Backward: for valid proof codes, check_all_lines returns nonzero.
+///  Currently requires Assumption lines to use fixed ZFC axioms (not replacement).
+///  This restriction will be lifted once check_replacement_axiom is proved.
 proof fn lemma_all_lines_check_backward(s: nat, p: Proof)
     requires
         encode_proof(p) == s,
         is_valid_proof(p, |f: Formula| is_zfc_axiom(f)),
         p.lines.len() > 0,
+        //  Temporary restriction: Assumption lines use only fixed ZFC axioms
+        forall|j: nat| j < p.lines.len() && p.lines[j as int].1 == Justification::Assumption
+            ==> (#[trigger] (p.lines[j as int].0 == extensionality_axiom()
+                || p.lines[j as int].0 == pairing_axiom()
+                || p.lines[j as int].0 == union_axiom()
+                || p.lines[j as int].0 == powerset_axiom()
+                || p.lines[j as int].0 == infinity_axiom()
+                || p.lines[j as int].0 == foundation_axiom()
+                || p.lines[j as int].0 == choice_axiom())),
     ensures
         eval_comp(check_all_lines(), s) != 0,
 {
-    //  The BoundedRec in check_all_lines iterates over the encoded sequence,
-    //  checking each line with check_line(pair(s, idx)).
-    //  For each valid line, check_line must return nonzero.
-    //
-    //  This requires showing:
-    //  1. The iteration processes exactly p.lines.len() elements
-    //  2. For each line i, check_line correctly validates the justification
-    //  3. The validity accumulator stays 1 throughout
-    //
-    //  Each sub-check (ModusPonens, Generalization, LogicAxiom, Assumption)
-    //  needs its own connecting lemma.
-    assume(eval_comp(check_all_lines(), s) != 0);
+    let lines = Seq::new(p.lines.len(), |j: int| encode_line(p.lines[j]));
+
+    //  Step 1: Prove check_line returns nonzero for each valid line
+    assert forall|j: nat| #![trigger (0 + j)] j < lines.len() implies
+        eval_comp(check_line(), pair(s, (0 + j) as nat)) != 0
+    by {
+        crate::compspec_check_line_helpers::lemma_check_line_valid(p, j);
+    }
+
+    //  Step 2: Unfold check_all_lines to compspec_iterate
+    lemma_cal_unfold(s);
+
+    //  Step 3: Iteration maintains valid != 0
+    lemma_cal_iteration(s, lines, 0, 1, s);
 }
 
 pub proof fn lemma_halts_comp_correct()
