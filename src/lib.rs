@@ -91,6 +91,9 @@ pub mod compspec_replacement_helpers;
 #[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction;
 
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_checkers;
+
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;

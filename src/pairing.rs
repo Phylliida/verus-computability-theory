@@ -261,4 +261,77 @@ pub proof fn lemma_unpair2_pair(a: nat, b: nat)
     //  unpair2(p) = k - unpair1(p) = s - a = b
 }
 
+//  ============================================================
+//  Surjectivity and bounds for unpairing
+//  ============================================================
+
+///  unpair1 + unpair2 equals the anti-diagonal.
+pub proof fn lemma_unpair_sum(p: nat)
+    ensures unpair1(p) + unpair2(p) == unpair_sum(p),
+{
+    lemma_unpair_sum_exists(p);
+    let k = unpair_sum(p);
+    //  unpair1(p) = p - T(k), unpair2(p) = k - unpair1(p)
+    //  sum = (p - T(k)) + (k - (p - T(k))) = k
+}
+
+///  Full roundtrip: pair(unpair1(p), unpair2(p)) == p.
+pub proof fn lemma_pair_surjective(p: nat)
+    ensures pair(unpair1(p), unpair2(p)) == p,
+{
+    lemma_unpair_sum_exists(p);
+    lemma_unpair_sum(p);
+    let k = unpair_sum(p);
+    let a = unpair1(p);
+    //  a + unpair2(p) == k, so pair(a, unpair2(p)) = T(k) + a = T(k) + (p - T(k)) = p
+    assert(pair(a, unpair2(p)) == triangular(a + unpair2(p)) + a);
+    assert(a + unpair2(p) == k);
+    assert(triangular(k) + a == triangular(k) + (p - triangular(k)));
+}
+
+///  unpair1(p) <= p.
+pub proof fn lemma_unpair1_le(p: nat)
+    ensures unpair1(p) <= p,
+{
+    lemma_unpair_sum_exists(p);
+    //  unpair1(p) = p - T(k) where T(k) <= p, so unpair1(p) <= p
+}
+
+///  unpair2(p) <= p.
+pub proof fn lemma_unpair2_le(p: nat)
+    ensures unpair2(p) <= p,
+{
+    lemma_unpair_sum_exists(p);
+    lemma_unpair_sum(p);
+    let k = unpair_sum(p);
+    //  unpair2(p) = k - unpair1(p) <= k
+    //  T(k) <= p and T(k) >= k (by lemma_triangular_ge), so k <= p
+    lemma_triangular_ge(k);
+}
+
+///  When unpair1(p) >= 1, unpair2(p) < p.
+pub proof fn lemma_unpair2_lt(p: nat)
+    requires unpair1(p) >= 1,
+    ensures unpair2(p) < p,
+{
+    lemma_pair_surjective(p);
+    lemma_pair_pos_tag_gt_content(unpair1(p), unpair2(p));
+    //  pair(unpair1(p), unpair2(p)) > unpair2(p)
+    //  pair(unpair1(p), unpair2(p)) == p
+    //  Therefore p > unpair2(p)
+}
+
+///  When unpair1(p) >= 1, both components of unpair2(p) are < p.
+pub proof fn lemma_unpair_content_lt(p: nat)
+    requires unpair1(p) >= 1,
+    ensures
+        unpair2(p) < p,
+        unpair1(unpair2(p)) <= unpair2(p),
+        unpair2(unpair2(p)) <= unpair2(p),
+{
+    lemma_unpair2_lt(p);
+    lemma_unpair1_le(unpair2(p));
+    lemma_unpair2_le(unpair2(p));
+}
+
 } //  verus!

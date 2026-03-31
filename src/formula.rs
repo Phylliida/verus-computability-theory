@@ -919,4 +919,152 @@ pub proof fn lemma_subst_preserves_tag(f: Formula, var: nat, t: Term)
     }
 }
 
+//  ============================================================
+//  Decoding: reconstruct Formula from Gödel number
+//  ============================================================
+
+///  Decode a term from its Gödel number.
+pub open spec fn decode_term(n: nat) -> Term {
+    Term::Var { index: n }
+}
+
+///  Decode a formula from its Gödel number.
+///  Dispatches on tag (unpair1) and recursively decodes sub-formulas.
+pub open spec fn decode_formula(n: nat) -> Formula
+    decreases n
+    via decode_formula_decreases
+{
+    let tag = unpair1(n);
+    let content = unpair2(n);
+    if tag == 0 {
+        Formula::Eq { left: decode_term(unpair1(content)), right: decode_term(unpair2(content)) }
+    } else if tag == 1 {
+        Formula::In { left: decode_term(unpair1(content)), right: decode_term(unpair2(content)) }
+    } else if tag == 2 {
+        Formula::Not { sub: Box::new(decode_formula(content)) }
+    } else if tag == 3 {
+        Formula::And { left: Box::new(decode_formula(unpair1(content))), right: Box::new(decode_formula(unpair2(content))) }
+    } else if tag == 4 {
+        Formula::Or { left: Box::new(decode_formula(unpair1(content))), right: Box::new(decode_formula(unpair2(content))) }
+    } else if tag == 5 {
+        Formula::Implies { left: Box::new(decode_formula(unpair1(content))), right: Box::new(decode_formula(unpair2(content))) }
+    } else if tag == 6 {
+        Formula::Iff { left: Box::new(decode_formula(unpair1(content))), right: Box::new(decode_formula(unpair2(content))) }
+    } else if tag == 7 {
+        Formula::Forall { var: unpair1(content), sub: Box::new(decode_formula(unpair2(content))) }
+    } else if tag == 8 {
+        Formula::Exists { var: unpair1(content), sub: Box::new(decode_formula(unpair2(content))) }
+    } else {
+        //  Default for invalid tags
+        Formula::Eq { left: Term::Var { index: 0 }, right: Term::Var { index: 0 } }
+    }
+}
+
+#[via_fn]
+proof fn decode_formula_decreases(n: nat) {
+    //  Show all recursive calls use strictly smaller arguments.
+    //  For tags 1-8: content = unpair2(n) < n (since unpair1(n) >= 1).
+    //  For binary (tags 3-6): unpair1(content) <= content < n and unpair2(content) <= content < n.
+    if unpair1(n) >= 1 {
+        lemma_unpair2_lt(n);
+        lemma_unpair1_le(unpair2(n));
+        lemma_unpair2_le(unpair2(n));
+    }
+}
+
+///  Roundtrip: decode_term(encode_term(t)) == t.
+pub proof fn lemma_decode_encode_term(t: Term)
+    ensures decode_term(encode_term(t)) == t,
+{
+    match t { Term::Var { index } => {} }
+}
+
+///  Roundtrip: decode_formula(encode(f)) == f.
+pub proof fn lemma_decode_encode_formula(f: Formula)
+    ensures decode_formula(encode(f)) == f,
+    decreases f,
+{
+    match f {
+        Formula::Eq { left, right } => {
+            lemma_unpair1_pair(0nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair2_pair(0nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair1_pair(encode_term(left), encode_term(right));
+            lemma_unpair2_pair(encode_term(left), encode_term(right));
+            lemma_decode_encode_term(left);
+            lemma_decode_encode_term(right);
+        },
+        Formula::In { left, right } => {
+            lemma_unpair1_pair(1nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair2_pair(1nat, pair(encode_term(left), encode_term(right)));
+            lemma_unpair1_pair(encode_term(left), encode_term(right));
+            lemma_unpair2_pair(encode_term(left), encode_term(right));
+            lemma_decode_encode_term(left);
+            lemma_decode_encode_term(right);
+        },
+        Formula::Not { sub } => {
+            lemma_unpair1_pair(2nat, encode(*sub));
+            lemma_unpair2_pair(2nat, encode(*sub));
+            lemma_decode_encode_formula(*sub);
+        },
+        Formula::And { left, right } => {
+            lemma_unpair1_pair(3nat, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(3nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(encode(*left), encode(*right));
+            lemma_unpair2_pair(encode(*left), encode(*right));
+            lemma_decode_encode_formula(*left);
+            lemma_decode_encode_formula(*right);
+        },
+        Formula::Or { left, right } => {
+            lemma_unpair1_pair(4nat, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(4nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(encode(*left), encode(*right));
+            lemma_unpair2_pair(encode(*left), encode(*right));
+            lemma_decode_encode_formula(*left);
+            lemma_decode_encode_formula(*right);
+        },
+        Formula::Implies { left, right } => {
+            lemma_unpair1_pair(5nat, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(5nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(encode(*left), encode(*right));
+            lemma_unpair2_pair(encode(*left), encode(*right));
+            lemma_decode_encode_formula(*left);
+            lemma_decode_encode_formula(*right);
+        },
+        Formula::Iff { left, right } => {
+            lemma_unpair1_pair(6nat, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(6nat, pair(encode(*left), encode(*right)));
+            lemma_unpair1_pair(encode(*left), encode(*right));
+            lemma_unpair2_pair(encode(*left), encode(*right));
+            lemma_decode_encode_formula(*left);
+            lemma_decode_encode_formula(*right);
+        },
+        Formula::Forall { var, sub } => {
+            lemma_unpair1_pair(7nat, pair(var, encode(*sub)));
+            lemma_unpair2_pair(7nat, pair(var, encode(*sub)));
+            lemma_unpair1_pair(var, encode(*sub));
+            lemma_unpair2_pair(var, encode(*sub));
+            lemma_decode_encode_formula(*sub);
+        },
+        Formula::Exists { var, sub } => {
+            lemma_unpair1_pair(8nat, pair(var, encode(*sub)));
+            lemma_unpair2_pair(8nat, pair(var, encode(*sub)));
+            lemma_unpair1_pair(var, encode(*sub));
+            lemma_unpair2_pair(var, encode(*sub));
+            lemma_decode_encode_formula(*sub);
+        },
+    }
+}
+
+///  Encode-after-decode roundtrip for valid formula encodings.
+///  If n is in the image of encode, then encode(decode_formula(n)) == n.
+pub proof fn lemma_encode_decode_formula(n: nat)
+    requires exists|f: Formula| encode(f) == n,
+    ensures encode(decode_formula(n)) == n,
+{
+    let f: Formula = choose|f: Formula| encode(f) == n;
+    lemma_decode_encode_formula(f);
+    //  decode_formula(encode(f)) == f
+    //  So encode(decode_formula(n)) == encode(decode_formula(encode(f))) == encode(f) == n
+}
+
 } //  verus!
