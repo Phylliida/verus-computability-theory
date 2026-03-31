@@ -264,4 +264,235 @@ pub proof fn lemma_check_zfc_fixed_forward(enc: nat, axiom: Formula)
     reveal(is_zfc_axiom);
 }
 
+//  ---- Iff Intro: (φ→ψ) → ((ψ→φ) → (φ↔ψ)) ----
+
+#[verifier::rlimit(1500)]
+pub proof fn lemma_check_iff_intro_forward(enc: nat)
+    requires eval_comp(check_axiom_iff_intro(), enc) != 0,
+    ensures is_axiom_iff_intro(decode_formula(enc)),
+{
+    hide(eval_comp);
+    hide(decode_formula);
+
+    let content = cs_snd(CompSpec::Id);
+    let l = cs_fst(content);
+    let r = cs_snd(content);
+    let phi_cs = cs_fst(cs_snd(l));
+    let psi_cs = cs_snd(cs_snd(l));
+
+    //  Step 1: Derive tags
+    assert(unpair1(enc) == 5
+        && unpair1(unpair1(unpair2(enc))) == 5
+        && unpair1(unpair2(unpair2(enc))) == 5) by {
+        reveal(eval_comp);
+        let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+        let c2 = cs_eq(cs_fst(l), cs_const(5));
+        let c3 = cs_eq(cs_fst(r), cs_const(5));
+        let c4 = cs_eq(cs_fst(cs_snd(r)),
+            CompSpec::CantorPair { left: Box::new(cs_const(5)),
+                right: Box::new(CompSpec::CantorPair { left: Box::new(psi_cs), right: Box::new(phi_cs) }) });
+        let c5 = cs_eq(cs_snd(cs_snd(r)),
+            CompSpec::CantorPair { left: Box::new(cs_const(6)), right: Box::new(cs_snd(l)) });
+        lemma_eval_cs_and(c4, c5, enc);
+        lemma_eval_cs_and(c3, cs_and(c4, c5), enc);
+        lemma_eval_cs_and(c2, cs_and(c3, cs_and(c4, c5)), enc);
+        lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, cs_and(c4, c5))), enc);
+        lemma_eval_eq(cs_fst(CompSpec::Id), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(l), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(r), cs_const(5), enc);
+        lemma_eval_fst(CompSpec::Id, enc);
+        lemma_eval_snd(CompSpec::Id, enc);
+        lemma_eval_fst(content, enc);
+        lemma_eval_snd(content, enc);
+        lemma_eval_fst(l, enc);
+        lemma_eval_fst(r, enc);
+    }
+
+    //  Step 2: Derive content equalities (R.left and R.right structure)
+    let l_enc = unpair1(unpair2(enc));
+    let r_enc = unpair2(unpair2(enc));
+    let phi_v = unpair1(unpair2(l_enc));
+    let psi_v = unpair2(unpair2(l_enc));
+    assert(unpair1(unpair2(r_enc)) == pair(5nat, pair(psi_v, phi_v))
+        && unpair2(unpair2(r_enc)) == pair(6nat, unpair2(l_enc))) by {
+        reveal(eval_comp);
+        let c4 = cs_eq(cs_fst(cs_snd(r)),
+            CompSpec::CantorPair { left: Box::new(cs_const(5)),
+                right: Box::new(CompSpec::CantorPair { left: Box::new(psi_cs), right: Box::new(phi_cs) }) });
+        let c5 = cs_eq(cs_snd(cs_snd(r)),
+            CompSpec::CantorPair { left: Box::new(cs_const(6)), right: Box::new(cs_snd(l)) });
+        let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+        let c2 = cs_eq(cs_fst(l), cs_const(5));
+        let c3 = cs_eq(cs_fst(r), cs_const(5));
+        lemma_eval_cs_and(c4, c5, enc);
+        lemma_eval_cs_and(c3, cs_and(c4, c5), enc);
+        lemma_eval_cs_and(c2, cs_and(c3, cs_and(c4, c5)), enc);
+        lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, cs_and(c4, c5))), enc);
+        lemma_eval_eq(cs_fst(cs_snd(r)), CompSpec::CantorPair { left: Box::new(cs_const(5)),
+            right: Box::new(CompSpec::CantorPair { left: Box::new(psi_cs), right: Box::new(phi_cs) }) }, enc);
+        lemma_eval_eq(cs_snd(cs_snd(r)), CompSpec::CantorPair { left: Box::new(cs_const(6)),
+            right: Box::new(cs_snd(l)) }, enc);
+        lemma_eval_snd(CompSpec::Id, enc);
+        lemma_eval_fst(content, enc);
+        lemma_eval_snd(content, enc);
+        lemma_eval_snd(l, enc);
+        lemma_eval_fst(cs_snd(l), enc);
+        lemma_eval_snd(cs_snd(l), enc);
+        lemma_eval_snd(r, enc);
+        lemma_eval_fst(cs_snd(r), enc);
+        lemma_eval_snd(cs_snd(r), enc);
+        lemma_eval_pair(psi_cs, phi_cs, enc);
+        lemma_eval_pair(cs_const(5), CompSpec::CantorPair { left: Box::new(psi_cs), right: Box::new(phi_cs) }, enc);
+        lemma_eval_pair(cs_const(6), cs_snd(l), enc);
+    }
+
+    //  Step 3: Decode
+    lemma_pair_surjective(enc);
+    lemma_pair_surjective(unpair2(enc));
+    lemma_pair_surjective(l_enc);
+    lemma_pair_surjective(r_enc);
+    lemma_pair_surjective(unpair2(l_enc));
+    lemma_pair_surjective(unpair2(r_enc));
+
+    let phi = decode_formula(phi_v);
+    let psi = decode_formula(psi_v);
+
+    assert(decode_formula(enc) == mk_implies(
+        mk_implies(phi, psi),
+        mk_implies(mk_implies(psi, phi), mk_iff(phi, psi)))) by {
+        reveal(decode_formula);
+    }
+
+    assert(is_axiom_iff_intro(decode_formula(enc)));
+}
+
+//  ---- Hyp Syllogism: (φ→ψ) → ((ψ→χ) → (φ→χ)) ----
+
+#[verifier::rlimit(1500)]
+pub proof fn lemma_check_hyp_syl_forward(enc: nat)
+    requires eval_comp(check_axiom_hyp_syllogism(), enc) != 0,
+    ensures is_axiom_hyp_syllogism(decode_formula(enc)),
+{
+    hide(eval_comp);
+    hide(decode_formula);
+
+    let content = cs_snd(CompSpec::Id);
+    let l = cs_fst(content);
+    let r = cs_snd(content);
+    let phi = cs_fst(cs_snd(l));
+    let psi = cs_snd(cs_snd(l));
+    let m = cs_fst(cs_snd(r));
+    let n = cs_snd(cs_snd(r));
+
+    //  Step 1: Derive tags
+    assert(unpair1(enc) == 5
+        && unpair1(unpair1(unpair2(enc))) == 5
+        && unpair1(unpair2(unpair2(enc))) == 5) by {
+        reveal(eval_comp);
+        let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+        let c2 = cs_eq(cs_fst(l), cs_const(5));
+        let c3 = cs_eq(cs_fst(r), cs_const(5));
+        let c4 = cs_eq(cs_fst(m), cs_const(5));
+        let c5 = cs_eq(cs_fst(n), cs_const(5));
+        let c6 = cs_eq(cs_fst(cs_snd(m)), psi);
+        let c7 = cs_eq(cs_fst(cs_snd(n)), phi);
+        let c8 = cs_eq(cs_snd(cs_snd(n)), cs_snd(cs_snd(m)));
+        lemma_eval_cs_and(c7, c8, enc);
+        lemma_eval_cs_and(c6, cs_and(c7, c8), enc);
+        lemma_eval_cs_and(c5, cs_and(c6, cs_and(c7, c8)), enc);
+        lemma_eval_cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8))), enc);
+        lemma_eval_cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8)))), enc);
+        lemma_eval_cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8))))), enc);
+        lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8)))))), enc);
+        lemma_eval_eq(cs_fst(CompSpec::Id), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(l), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(r), cs_const(5), enc);
+        lemma_eval_fst(CompSpec::Id, enc);
+        lemma_eval_snd(CompSpec::Id, enc);
+        lemma_eval_fst(content, enc);
+        lemma_eval_snd(content, enc);
+        lemma_eval_fst(l, enc);
+        lemma_eval_fst(r, enc);
+    }
+
+    //  Step 2: Derive M,N tags and content equalities
+    let l_enc = unpair1(unpair2(enc));
+    let r_enc = unpair2(unpair2(enc));
+    let phi_v = unpair1(unpair2(l_enc));
+    let psi_v = unpair2(unpair2(l_enc));
+    assert(
+        unpair1(unpair1(unpair2(r_enc))) == 5
+        && unpair1(unpair2(unpair2(r_enc))) == 5
+        && unpair1(unpair2(unpair1(unpair2(r_enc)))) == psi_v
+        && unpair1(unpair2(unpair2(unpair2(r_enc)))) == phi_v
+        && unpair2(unpair2(unpair2(unpair2(r_enc)))) == unpair2(unpair2(unpair1(unpair2(r_enc))))
+    ) by {
+        reveal(eval_comp);
+        let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+        let c2 = cs_eq(cs_fst(l), cs_const(5));
+        let c3 = cs_eq(cs_fst(r), cs_const(5));
+        let c4 = cs_eq(cs_fst(m), cs_const(5));
+        let c5 = cs_eq(cs_fst(n), cs_const(5));
+        let c6 = cs_eq(cs_fst(cs_snd(m)), psi);
+        let c7 = cs_eq(cs_fst(cs_snd(n)), phi);
+        let c8 = cs_eq(cs_snd(cs_snd(n)), cs_snd(cs_snd(m)));
+        lemma_eval_cs_and(c7, c8, enc);
+        lemma_eval_cs_and(c6, cs_and(c7, c8), enc);
+        lemma_eval_cs_and(c5, cs_and(c6, cs_and(c7, c8)), enc);
+        lemma_eval_cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8))), enc);
+        lemma_eval_cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8)))), enc);
+        lemma_eval_cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8))))), enc);
+        lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, cs_and(c4, cs_and(c5, cs_and(c6, cs_and(c7, c8)))))), enc);
+        lemma_eval_eq(cs_fst(m), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(n), cs_const(5), enc);
+        lemma_eval_eq(cs_fst(cs_snd(m)), psi, enc);
+        lemma_eval_eq(cs_fst(cs_snd(n)), phi, enc);
+        lemma_eval_eq(cs_snd(cs_snd(n)), cs_snd(cs_snd(m)), enc);
+        lemma_eval_snd(CompSpec::Id, enc);
+        lemma_eval_fst(content, enc);
+        lemma_eval_snd(content, enc);
+        lemma_eval_snd(l, enc);
+        lemma_eval_fst(cs_snd(l), enc);
+        lemma_eval_snd(cs_snd(l), enc);
+        lemma_eval_snd(r, enc);
+        lemma_eval_fst(cs_snd(r), enc);
+        lemma_eval_snd(cs_snd(r), enc);
+        lemma_eval_fst(m, enc);
+        lemma_eval_fst(n, enc);
+        lemma_eval_snd(m, enc);
+        lemma_eval_fst(cs_snd(m), enc);
+        lemma_eval_snd(cs_snd(m), enc);
+        lemma_eval_snd(n, enc);
+        lemma_eval_fst(cs_snd(n), enc);
+        lemma_eval_snd(cs_snd(n), enc);
+    }
+
+    //  Step 3: Decode
+    lemma_pair_surjective(enc);
+    lemma_pair_surjective(unpair2(enc));
+    lemma_pair_surjective(l_enc);
+    lemma_pair_surjective(r_enc);
+    lemma_pair_surjective(unpair2(l_enc));
+    lemma_pair_surjective(unpair2(r_enc));
+    let m_enc = unpair1(unpair2(r_enc));
+    let n_enc = unpair2(unpair2(r_enc));
+    lemma_pair_surjective(m_enc);
+    lemma_pair_surjective(n_enc);
+    lemma_pair_surjective(unpair2(m_enc));
+    lemma_pair_surjective(unpair2(n_enc));
+
+    let phi_f = decode_formula(phi_v);
+    let psi_f = decode_formula(psi_v);
+    let chi_v = unpair2(unpair2(m_enc));
+    let chi_f = decode_formula(chi_v);
+
+    assert(decode_formula(enc) == mk_implies(
+        mk_implies(phi_f, psi_f),
+        mk_implies(mk_implies(psi_f, chi_f), mk_implies(phi_f, chi_f)))) by {
+        reveal(decode_formula);
+    }
+
+    assert(is_axiom_hyp_syllogism(decode_formula(enc)));
+}
+
 } //  verus!
