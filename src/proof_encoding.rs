@@ -271,4 +271,16 @@ pub proof fn lemma_encode_nat_seq_structure(s: Seq<nat>)
     lemma_unpair2_pair(s[0] + 1, encode_nat_seq(tail));
 }
 
+///  encode_nat_seq(s) >= s.len() for all sequences.
+pub proof fn lemma_encode_nat_seq_ge_len(s: Seq<nat>)
+    ensures encode_nat_seq(s) >= s.len(),
+    decreases s.len(),
+{
+    if s.len() > 0 {
+        let tail = s.subrange(1, s.len() as int);
+        lemma_encode_nat_seq_ge_len(tail);
+        lemma_pair_ge_sum(s[0] + 1, encode_nat_seq(tail));
+    }
+}
+
 } //  verus!
