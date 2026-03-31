@@ -63,30 +63,4 @@ pub proof fn lemma_check_iff_elim_right_forward(enc: nat)
     decode_implies(impl_enc);
 }
 
-pub proof fn lemma_check_iff_intro_forward(enc: nat)
-    requires eval_comp(check_axiom_iff_intro(), enc) != 0,
-    ensures is_axiom_iff_intro(decode_formula(enc)),
-{
-    hide(decode_formula);
-    iff_intro_structure(enc);
-    let l_enc = unpair1(unpair2(enc));
-    let r_enc = unpair2(unpair2(enc));
-    lemma_pair_surjective(unpair2(l_enc));
-    lemma_pair_surjective(unpair2(r_enc));
-    let phi = decode_formula(unpair1(unpair2(l_enc)));
-    let psi = decode_formula(unpair2(unpair2(l_enc)));
-    //  Outer: Implies(L, R)
-    decode_implies(enc);
-    //  L = Implies(phi, psi)
-    decode_implies(l_enc);
-    //  R = Implies(Implies(psi, phi), Iff(phi, psi))
-    decode_implies(r_enc);
-    //  R.left = Implies(psi, phi), R.right = Iff(phi, psi)
-    //  Need to decode R.left and R.right
-    let r_left = unpair1(unpair2(r_enc));
-    let r_right = unpair2(unpair2(r_enc));
-    decode_implies(r_left);
-    decode_iff(r_right);
-}
-
 } //  verus!
