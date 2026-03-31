@@ -60,21 +60,6 @@ pub proof fn lemma_check_logic_axiom_correct(f: Formula)
     reveal(is_logic_axiom);
     let x = encode(f);
 
-    //  Handle eq_subst via structural match (exhaustive for Implies(Eq, Implies))
-    match f {
-        Formula::Implies { left, right } => {
-            match (*left, *right) {
-                (Formula::Eq { left: xt, right: yt }, Formula::Implies { left: s1, right: s2 }) => {
-                    eq_subst_left_inner(f, xt, yt, *s1, *s2);
-                    logic_axiom_chain(x, 9);
-                    return;
-                },
-                (_, _) => {},
-            }
-        },
-        _ => {},
-    }
-
     //  Flat if-else dispatch with reveal(is_logic_axiom) to help Z3
     if is_axiom_identity(f) { lemma_check_axiom_identity_correct(f); logic_axiom_chain(x, 0); }
     else if is_axiom_eq_refl(f) { lemma_check_axiom_eq_refl_correct(f); logic_axiom_chain(x, 1); }

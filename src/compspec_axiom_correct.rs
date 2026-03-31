@@ -63,15 +63,19 @@ pub proof fn lemma_check_axiom_eq_subst_left_correct(f: Formula)
     requires is_axiom_eq_subst_left(f),
     ensures eval_comp(check_axiom_eq_subst_left(), encode(f)) != 0,
 {
-    //  f = Implies(Eq(x,y), Implies(subst1, subst2))
-    //  Partial check: only verifies outer tags 5, 0, 5
     match f {
         Formula::Implies { left, right } => {
             match (*left, *right) {
                 (Formula::Eq { left: xt, right: yt }, Formula::Implies { left: s1, right: s2 }) => {
-                    //  check_axiom_eq_subst_left just checks tags
-                    //  Need: f == mk_implies(mk_eq(xt, yt), mk_implies(*s1, *s2))
-                    //  This is true by construction
+                    //  Prove eq_subst_compatible from the existential witnesses
+                    assert(eq_subst_compatible(*s1, *s2, xt, yt)) by {
+                        assert forall|phi: Formula, var: nat|
+                            *s1 == subst(phi, var, xt) && *s2 == #[trigger] subst(phi, var, yt)
+                            implies eq_subst_compatible(*s1, *s2, xt, yt)
+                        by {
+                            lemma_subst_eq_subst_compatible(phi, var, xt, yt);
+                        }
+                    };
                     eq_subst_left_inner(f, xt, yt, *s1, *s2);
                 },
                 (_, _) => {},
@@ -89,6 +93,16 @@ pub proof fn lemma_check_axiom_eq_subst_right_correct(f: Formula)
         Formula::Implies { left, right } => {
             match (*left, *right) {
                 (Formula::Eq { left: xt, right: yt }, Formula::Implies { left: s1, right: s2 }) => {
+                    //  Right axiom: s1 = subst(phi, var, yt), s2 = subst(phi, var, xt)
+                    //  Compatible with swap pair (yt, xt)
+                    assert(eq_subst_compatible(*s1, *s2, yt, xt)) by {
+                        assert forall|phi: Formula, var: nat|
+                            *s1 == subst(phi, var, yt) && *s2 == #[trigger] subst(phi, var, xt)
+                            implies eq_subst_compatible(*s1, *s2, yt, xt)
+                        by {
+                            lemma_subst_eq_subst_compatible(phi, var, yt, xt);
+                        }
+                    };
                     eq_subst_right_inner(f, xt, yt, *s1, *s2);
                 },
                 (_, _) => {},
