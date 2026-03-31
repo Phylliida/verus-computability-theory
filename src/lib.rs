@@ -98,6 +98,9 @@ pub mod compspec_forward_structure;
 pub mod compspec_forward_structure2;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_forward_structure3;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_forward_checkers;
 
 #[cfg(verus_keep_ghost)]
@@ -105,6 +108,9 @@ pub mod compspec_forward_checkers2;
 
 #[cfg(verus_keep_ghost)]
 pub mod compspec_forward_checkers3;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_iteration;
 
 
 #[cfg(verus_keep_ghost)]

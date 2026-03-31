@@ -6,7 +6,7 @@ use crate::compspec_halts::*;
 verus! {
 
 //  Helper: extract individual factors from a cs_and chain
-proof fn lemma_cs_and_nonzero_left(a: CompSpec, b: CompSpec, s: nat)
+pub proof fn lemma_cs_and_nonzero_left(a: CompSpec, b: CompSpec, s: nat)
     requires eval_comp(cs_and(a, b), s) != 0,
     ensures eval_comp(a, s) != 0,
 {
@@ -19,7 +19,7 @@ proof fn lemma_cs_and_nonzero_left(a: CompSpec, b: CompSpec, s: nat)
     }
 }
 
-proof fn lemma_cs_and_nonzero_right(a: CompSpec, b: CompSpec, s: nat)
+pub proof fn lemma_cs_and_nonzero_right(a: CompSpec, b: CompSpec, s: nat)
     requires eval_comp(cs_and(a, b), s) != 0,
     ensures eval_comp(b, s) != 0,
 {

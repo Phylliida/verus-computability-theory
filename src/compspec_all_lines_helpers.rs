@@ -42,7 +42,7 @@ pub open spec fn cal_step() -> CompSpec {
 }
 
 ///  When remaining is empty (fst == 0), the step returns acc unchanged.
-proof fn lemma_cal_step_done(
+pub proof fn lemma_cal_step_done(
     i: nat, remaining: nat, valid: nat, idx: nat, s: nat,
 )
     requires
@@ -86,7 +86,7 @@ proof fn lemma_cal_step_done(
 }
 
 ///  When remaining is non-empty, step advances: pops head, checks line, advances idx.
-proof fn lemma_cal_step_advance(
+pub proof fn lemma_cal_step_advance(
     i: nat, head_plus_1: nat, rest_enc: nat, valid: nat, idx: nat, s: nat,
 )
     requires
@@ -175,7 +175,7 @@ proof fn lemma_cal_step_advance(
 }
 
 ///  Iteration on empty remaining stays stable.
-proof fn lemma_cal_empty_stable(
+pub proof fn lemma_cal_empty_stable(
     remaining: nat, valid: nat, idx: nat, s: nat, fuel: nat,
 )
     requires
