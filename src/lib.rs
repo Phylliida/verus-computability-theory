@@ -92,6 +92,12 @@ pub mod compspec_replacement_helpers;
 pub mod compspec_subst_induction;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_forward_structure;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_forward_structure2;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_forward_checkers;
 
 
