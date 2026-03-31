@@ -619,9 +619,29 @@ pub open spec fn check_axiom_eq_subst_left() -> CompSpec {
 }
 
 ///  Check: is_axiom_eq_subst_right at encoding level.
-///  Same checker — it's symmetric in the eq_subst relationship.
+///  Like left, but with x and y SWAPPED in the parallel-walk input,
+///  because the right axiom has subst(phi,var,y) → subst(phi,var,x).
 pub open spec fn check_axiom_eq_subst_right() -> CompSpec {
-    check_axiom_eq_subst_left()
+    let outer_content = cs_snd(CompSpec::Id);
+    let eq_part = cs_fst(outer_content);
+    let impl_part = cs_snd(outer_content);
+    let x = cs_fst(cs_snd(eq_part));
+    let y = cs_snd(cs_snd(eq_part));
+    let left_subst = cs_fst(cs_snd(impl_part));
+    let right_subst = cs_snd(cs_snd(impl_part));
+
+    cs_and(
+        cs_eq(cs_fst(CompSpec::Id), cs_const(5)),
+        cs_and(
+            cs_eq(cs_fst(eq_part), cs_const(0)),
+            cs_and(
+                cs_eq(cs_fst(impl_part), cs_const(5)),
+                //  Note: y, x instead of x, y for the right axiom
+                cs_comp(check_eq_subst_pair(),
+                    cs_pair(left_subst, cs_pair(right_subst, cs_pair(y, x))))
+            )
+        )
+    )
 }
 
 pub open spec fn check_logic_axiom() -> CompSpec {

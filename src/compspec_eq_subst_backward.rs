@@ -941,6 +941,7 @@ proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: nat)
     let base_val = pair(pair(entry + 1, 0nat), 1nat);
 
     //  Establish fuel and base eval values explicitly
+    lemma_unpair1_pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
     assert(eval_comp(left_enc_cs, input) == f1_enc);
     assert(eval_comp(base_cs, input) == base_val) by {
         lemma_eval_pair(stack_init_cs, cs_const(1), input);

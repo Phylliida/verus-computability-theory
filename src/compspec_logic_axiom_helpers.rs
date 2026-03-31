@@ -330,31 +330,152 @@ proof fn eq_subst_tags(f: Formula, xt: Term, yt: Term, sl: Formula, sr: Formula)
     lemma_unpair1_pair(5nat, pair(encode(sl), encode(sr)));
 }
 
-pub proof fn eq_subst_left_inner(f: Formula, xt: Term, yt: Term, sl: Formula, sr: Formula)
-    requires f == mk_implies(mk_eq(xt, yt), mk_implies(sl, sr)),
+pub proof fn eq_subst_left_inner(
+    f: Formula, xt: Term, yt: Term, sl: Formula, sr: Formula,
+)
+    requires
+        f == mk_implies(mk_eq(xt, yt), mk_implies(sl, sr)),
+        eq_subst_compatible(sl, sr, xt, yt),
     ensures eval_comp(check_axiom_eq_subst_left(), encode(f)) != 0,
 {
     let x = encode(f);
     eq_subst_tags(f, xt, yt, sl, sr);
+
+    //  Tag checks: c1 (outer Implies=5), c2 (Eq=0), c3 (inner Implies=5)
     lemma_eval_eq(cs_fst(CompSpec::Id), cs_const(5), x);
     lemma_eval_eq(cs_fst(cs_fst(cs_snd(CompSpec::Id))), cs_const(0), x);
     lemma_eval_eq(cs_fst(cs_snd(cs_snd(CompSpec::Id))), cs_const(5), x);
     let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
     let c2 = cs_eq(cs_fst(cs_fst(cs_snd(CompSpec::Id))), cs_const(0));
     let c3 = cs_eq(cs_fst(cs_snd(cs_snd(CompSpec::Id))), cs_const(5));
-    lemma_eval_cs_and(c2, c3, x);
-    lemma_eval_cs_and(c1, cs_and(c2, c3), x);
+
+    //  Parallel-walk check: compatibility given as precondition
+    crate::compspec_eq_subst_backward::lemma_check_eq_subst_pair_backward(sl, sr, xt, yt);
+
+    //  Now evaluate the cs_comp(check_eq_subst_pair(), cs_pair(...)) at x
+    let outer_content = cs_snd(CompSpec::Id);
+    let eq_part = cs_fst(outer_content);
+    let impl_part = cs_snd(outer_content);
+    let x_cs = cs_fst(cs_snd(eq_part));
+    let y_cs = cs_snd(cs_snd(eq_part));
+    let left_subst_cs = cs_fst(cs_snd(impl_part));
+    let right_subst_cs = cs_snd(cs_snd(impl_part));
+    let walk_input = cs_pair(left_subst_cs, cs_pair(right_subst_cs, cs_pair(x_cs, y_cs)));
+
+    //  Evaluate walk_input at x to get pair(encode(sl), pair(encode(sr), pair(encode_term(xt), encode_term(yt))))
+    lemma_encode_implies(mk_eq(xt, yt), mk_implies(sl, sr));
+    lemma_encode_eq(xt, yt);
+    lemma_encode_implies(sl, sr);
+    lemma_eval_snd(CompSpec::Id, x);
+    lemma_unpair2_pair(5nat, pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr))));
+    lemma_eval_fst(outer_content, x);
+    lemma_unpair1_pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr)));
+    lemma_eval_snd(outer_content, x);
+    lemma_unpair2_pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr)));
+    lemma_eval_snd(eq_part, x);
+    lemma_unpair2_pair(0nat, pair(encode_term(xt), encode_term(yt)));
+    lemma_eval_fst(cs_snd(eq_part), x);
+    lemma_unpair1_pair(encode_term(xt), encode_term(yt));
+    lemma_eval_snd(cs_snd(eq_part), x);
+    lemma_unpair2_pair(encode_term(xt), encode_term(yt));
+    lemma_eval_snd(impl_part, x);
+    lemma_unpair2_pair(5nat, pair(encode(sl), encode(sr)));
+    lemma_eval_fst(cs_snd(impl_part), x);
+    lemma_unpair1_pair(encode(sl), encode(sr));
+    lemma_eval_snd(cs_snd(impl_part), x);
+    lemma_unpair2_pair(encode(sl), encode(sr));
+
+    lemma_eval_pair(x_cs, y_cs, x);
+    lemma_eval_pair(right_subst_cs, cs_pair(x_cs, y_cs), x);
+    lemma_eval_pair(left_subst_cs, cs_pair(right_subst_cs, cs_pair(x_cs, y_cs)), x);
+    lemma_eval_comp(check_eq_subst_pair(), walk_input, x);
+
+    let c4 = cs_comp(check_eq_subst_pair(), walk_input);
+
+    //  Combine all: cs_and(c1, cs_and(c2, cs_and(c3, c4)))
+    lemma_eval_cs_and(c3, c4, x);
+    lemma_eval_cs_and(c2, cs_and(c3, c4), x);
+    lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, c4)), x);
+
+    assert(eval_comp(c1, x) != 0);
+    assert(eval_comp(c2, x) != 0);
+    assert(eval_comp(c3, x) != 0);
+    assert(eval_comp(c4, x) != 0);
+    assert(eval_comp(c1, x) * (eval_comp(c2, x) * (eval_comp(c3, x) * eval_comp(c4, x))) != 0) by (nonlinear_arith)
+        requires eval_comp(c1, x) != 0, eval_comp(c2, x) != 0,
+                 eval_comp(c3, x) != 0, eval_comp(c4, x) != 0;
 }
 
 //  ============================================================
 //  Eq subst right: x=y → (φ[z/y] → φ[z/x])
 //  ============================================================
-pub proof fn eq_subst_right_inner(f: Formula, xt: Term, yt: Term, sl: Formula, sr: Formula)
-    requires f == mk_implies(mk_eq(xt, yt), mk_implies(sl, sr)),
+pub proof fn eq_subst_right_inner(
+    f: Formula, xt: Term, yt: Term, sl: Formula, sr: Formula,
+)
+    requires
+        f == mk_implies(mk_eq(xt, yt), mk_implies(sl, sr)),
+        eq_subst_compatible(sl, sr, yt, xt),
     ensures eval_comp(check_axiom_eq_subst_right(), encode(f)) != 0,
 {
-    //  check_axiom_eq_subst_right() == check_axiom_eq_subst_left() (same CompSpec)
-    eq_subst_left_inner(f, xt, yt, sl, sr);
+    let x = encode(f);
+    eq_subst_tags(f, xt, yt, sl, sr);
+
+    //  Tag checks (same as left)
+    lemma_eval_eq(cs_fst(CompSpec::Id), cs_const(5), x);
+    lemma_eval_eq(cs_fst(cs_fst(cs_snd(CompSpec::Id))), cs_const(0), x);
+    lemma_eval_eq(cs_fst(cs_snd(cs_snd(CompSpec::Id))), cs_const(5), x);
+    let c1 = cs_eq(cs_fst(CompSpec::Id), cs_const(5));
+    let c2 = cs_eq(cs_fst(cs_fst(cs_snd(CompSpec::Id))), cs_const(0));
+    let c3 = cs_eq(cs_fst(cs_snd(cs_snd(CompSpec::Id))), cs_const(5));
+
+    //  Parallel-walk: sl and sr are compatible with swap pair (yt, xt)
+    crate::compspec_eq_subst_backward::lemma_check_eq_subst_pair_backward(sl, sr, yt, xt);
+
+    //  Evaluate walk input at x (with y, x instead of x, y)
+    let outer_content = cs_snd(CompSpec::Id);
+    let eq_part = cs_fst(outer_content);
+    let impl_part = cs_snd(outer_content);
+    let x_cs = cs_fst(cs_snd(eq_part));
+    let y_cs = cs_snd(cs_snd(eq_part));
+    let left_subst_cs = cs_fst(cs_snd(impl_part));
+    let right_subst_cs = cs_snd(cs_snd(impl_part));
+    let walk_input = cs_pair(left_subst_cs, cs_pair(right_subst_cs, cs_pair(y_cs, x_cs)));
+
+    lemma_encode_implies(mk_eq(xt, yt), mk_implies(sl, sr));
+    lemma_encode_eq(xt, yt);
+    lemma_encode_implies(sl, sr);
+    lemma_eval_snd(CompSpec::Id, x);
+    lemma_unpair2_pair(5nat, pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr))));
+    lemma_eval_fst(outer_content, x);
+    lemma_unpair1_pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr)));
+    lemma_eval_snd(outer_content, x);
+    lemma_unpair2_pair(encode(mk_eq(xt, yt)), encode(mk_implies(sl, sr)));
+    lemma_eval_snd(eq_part, x);
+    lemma_unpair2_pair(0nat, pair(encode_term(xt), encode_term(yt)));
+    lemma_eval_fst(cs_snd(eq_part), x);
+    lemma_unpair1_pair(encode_term(xt), encode_term(yt));
+    lemma_eval_snd(cs_snd(eq_part), x);
+    lemma_unpair2_pair(encode_term(xt), encode_term(yt));
+    lemma_eval_snd(impl_part, x);
+    lemma_unpair2_pair(5nat, pair(encode(sl), encode(sr)));
+    lemma_eval_fst(cs_snd(impl_part), x);
+    lemma_unpair1_pair(encode(sl), encode(sr));
+    lemma_eval_snd(cs_snd(impl_part), x);
+    lemma_unpair2_pair(encode(sl), encode(sr));
+
+    lemma_eval_pair(y_cs, x_cs, x);
+    lemma_eval_pair(right_subst_cs, cs_pair(y_cs, x_cs), x);
+    lemma_eval_pair(left_subst_cs, cs_pair(right_subst_cs, cs_pair(y_cs, x_cs)), x);
+    lemma_eval_comp(check_eq_subst_pair(), walk_input, x);
+
+    let c4 = cs_comp(check_eq_subst_pair(), walk_input);
+    lemma_eval_cs_and(c3, c4, x);
+    lemma_eval_cs_and(c2, cs_and(c3, c4), x);
+    lemma_eval_cs_and(c1, cs_and(c2, cs_and(c3, c4)), x);
+
+    assert(eval_comp(c1, x) * (eval_comp(c2, x) * (eval_comp(c3, x) * eval_comp(c4, x))) != 0) by (nonlinear_arith)
+        requires eval_comp(c1, x) != 0, eval_comp(c2, x) != 0,
+                 eval_comp(c3, x) != 0, eval_comp(c4, x) != 0;
 }
 
 //  ============================================================
