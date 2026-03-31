@@ -83,6 +83,9 @@ pub mod compspec_subst_induction_steps;
 pub mod compspec_dispatchers;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_check_line_helpers;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction;
 
 
