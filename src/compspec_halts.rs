@@ -10,6 +10,7 @@ use crate::enumerator_computable::*;
 use crate::compspec_decode::*;
 use crate::compspec_eval_helpers::*;
 use crate::compspec_sentence_helpers::*;
+use crate::compspec_all_lines_helpers::*;
 
 verus! {
 
@@ -1740,14 +1741,15 @@ proof fn lemma_all_lines_check_backward(s: nat, p: Proof)
         is_valid_proof(p, |f: Formula| is_zfc_axiom(f)),
         p.lines.len() > 0,
         //  Temporary restriction: Assumption lines use only fixed ZFC axioms
-        forall|j: nat| j < p.lines.len() && p.lines[j as int].1 == Justification::Assumption
-            ==> (#[trigger] (p.lines[j as int].0 == extensionality_axiom()
+        forall|j: nat| #[trigger] p.lines[j as int].1 == Justification::Assumption
+            && j < p.lines.len()
+            ==> (p.lines[j as int].0 == extensionality_axiom()
                 || p.lines[j as int].0 == pairing_axiom()
                 || p.lines[j as int].0 == union_axiom()
                 || p.lines[j as int].0 == powerset_axiom()
                 || p.lines[j as int].0 == infinity_axiom()
                 || p.lines[j as int].0 == foundation_axiom()
-                || p.lines[j as int].0 == choice_axiom())),
+                || p.lines[j as int].0 == choice_axiom()),
     ensures
         eval_comp(check_all_lines(), s) != 0,
 {
@@ -1759,6 +1761,9 @@ proof fn lemma_all_lines_check_backward(s: nat, p: Proof)
     by {
         crate::compspec_check_line_helpers::lemma_check_line_valid(p, j);
     }
+
+    //  Fuel adequacy: s = encode_nat_seq(lines) >= lines.len()
+    crate::proof_encoding::lemma_encode_nat_seq_ge_len(lines);
 
     //  Step 2: Unfold check_all_lines to compspec_iterate
     lemma_cal_unfold(s);
