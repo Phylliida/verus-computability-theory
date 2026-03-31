@@ -191,60 +191,16 @@ pub proof fn lemma_hfv_found_zero(
     lemma_unpair2_pair(0nat, 0nat);
 }
 
-///  Unfolding helper: eval_comp(has_free_var_comp(), input) ==
-///  unpair2(compspec_iterate(step, f_enc + 1, base_val, input)).
-///  Note: fuel is f_enc + 1 (ensures at least 1 step even for encode == 0).
+///  Unfolding helper: delegates to compspec_hfv_unfold.
 pub proof fn lemma_hfv_unfold(f_enc: nat, v: nat)
     ensures ({
         let input = pair(f_enc, v);
         let base_val = pair(pair(f_enc + 1, 0nat), 0nat);
         eval_comp(has_free_var_comp(), input)
-            == unpair2(compspec_iterate(has_free_var_step(), (f_enc + 1) as nat, base_val, input))
+            == unpair2(compspec_iterate(has_free_var_step(), f_enc, base_val, input))
     }),
 {
-    let input = pair(f_enc, v);
-    let f_enc_expr = cs_fst(CompSpec::Id);
-    let f_enc_plus_1 = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
-    let base_expr = CompSpec::CantorPair {
-        left: Box::new(CompSpec::CantorPair {
-            left: Box::new(CompSpec::Add {
-                left: Box::new(f_enc_expr),
-                right: Box::new(cs_const(1)),
-            }),
-            right: Box::new(cs_const(0)),
-        }),
-        right: Box::new(cs_const(0)),
-    };
-    let br = CompSpec::BoundedRec {
-        count_fn: Box::new(f_enc_plus_1),
-        base: Box::new(base_expr),
-        step: Box::new(has_free_var_step()),
-    };
-    assert(has_free_var_comp() == cs_comp(cs_snd(CompSpec::Id), br));
-    lemma_eval_comp(cs_snd(CompSpec::Id), br, input);
-    lemma_eval_bounded_rec(f_enc_plus_1, base_expr, has_free_var_step(), input);
-    lemma_eval_fst(CompSpec::Id, input);
-    lemma_unpair1_pair(f_enc, v);
-    lemma_eval_add(f_enc_expr, cs_const(1), input);
-    lemma_eval_pair(CompSpec::CantorPair {
-        left: Box::new(CompSpec::Add {
-            left: Box::new(f_enc_expr),
-            right: Box::new(cs_const(1)),
-        }),
-        right: Box::new(cs_const(0)),
-    }, cs_const(0), input);
-    lemma_eval_pair(CompSpec::Add {
-        left: Box::new(f_enc_expr),
-        right: Box::new(cs_const(1)),
-    }, cs_const(0), input);
-    //  Chain: eval(has_free_var_comp(), input) = eval(cs_snd(Id), eval(br, input))
-    //       = unpair2(iterate(step, f_enc+1, base_val, input))
-    let base_val = pair(pair(f_enc + 1, 0nat), 0nat);
-    assert(eval_comp(f_enc_plus_1, input) == (f_enc + 1) as nat);
-    assert(eval_comp(base_expr, input) == base_val);
-    let br_result = compspec_iterate(has_free_var_step(), (f_enc + 1) as nat, base_val, input);
-    assert(eval_comp(br, input) == br_result);
-    lemma_eval_snd(CompSpec::Id, br_result);
+    crate::compspec_hfv_unfold::lemma_hfv_comp_eval(f_enc, v);
 }
 
 ///  Top-level: has_free_var_comp() returns 0 for sentences.
@@ -259,8 +215,7 @@ pub proof fn lemma_has_free_var_sentence_core(f: Formula, v: nat)
     lemma_sentence_no_free_var(f, v);
     lemma_hfv_unfold(f_enc, v);
     lemma_sentence_encode_ge_cost(f, v);
-    //  fuel = f_enc + 1 >= f_enc >= traversal_cost
-    lemma_hfv_found_zero(f, v, f_enc, (f_enc + 1) as nat);
+    lemma_hfv_found_zero(f, v, f_enc, f_enc);
 }
 
 ///  General: has_free_var_comp() returns 0 when var is not free in formula.
@@ -273,13 +228,13 @@ pub proof fn lemma_has_free_var_general(f: Formula, v: nat)
 {
     let f_enc = encode(f);
     lemma_hfv_unfold(f_enc, v);
-    //  fuel = f_enc + 1 >= traversal_cost(f, v) always holds:
-    //  When f_enc > 0: lemma_encode_ge_cost_inner gives f_enc >= traversal_cost
-    //  When f_enc == 0: f = Eq(Var(0), Var(0)), traversal_cost = 1 = f_enc + 1
-    if f_enc > 0 {
+    if f_enc == 0 {
+        //  0 fuel: compspec_iterate returns base, found = 0
+        lemma_unpair2_pair(pair(1nat, 0nat), 0nat);
+    } else {
         lemma_encode_ge_cost_inner(f, v);
+        lemma_hfv_found_zero(f, v, f_enc, f_enc);
     }
-    lemma_hfv_found_zero(f, v, f_enc, (f_enc + 1) as nat);
 }
 
 } //  verus!
