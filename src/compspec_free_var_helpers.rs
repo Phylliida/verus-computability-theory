@@ -41,7 +41,7 @@ proof fn lemma_eval_v_extract(i: nat, acc: nat, f_enc: nat, v: nat)
 }
 
 ///  Helper: when found != 0, the step function returns acc unchanged.
-proof fn lemma_step_found_nonzero(
+pub proof fn lemma_step_found_nonzero(
     i: nat, stack: nat, found: nat, f_enc: nat, v: nat,
 )
     requires
@@ -119,7 +119,7 @@ pub proof fn lemma_step_empty_stack(
 }
 
 ///  Helper: when found==0 and stack non-empty, step == process_top.
-proof fn lemma_step_to_process_top(
+pub proof fn lemma_step_to_process_top(
     i: nat, enc_plus_1: nat, rest: nat, f_enc: nat, v: nat,
 )
     requires

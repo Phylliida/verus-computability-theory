@@ -8,7 +8,7 @@ use crate::compspec_free_var_helpers::*;
 verus! {
 
 ///  Key helper: chain one step of compspec_iterate.
-proof fn lemma_csi_step_chain(
+pub proof fn lemma_csi_step_chain(
     fuel: nat, old_acc: nat, new_acc: nat, f_enc: nat, v: nat,
 )
     requires
