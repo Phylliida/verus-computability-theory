@@ -201,14 +201,24 @@ pub proof fn lemma_encode_proof_injective(p1: Proof, p2: Proof)
 
 ///  Spec function: recursively find last element of encoded nat sequence.
 pub open spec fn decode_nat_seq_last(enc: nat) -> nat
-    decreases enc,
+    decreases enc
+    via decode_nat_seq_last_decreases
 {
     if enc == 0 {
         0  //  undefined for empty
+    } else if unpair1(enc) == 0 {
+        0  //  invalid encoding (elements stored as value+1 >= 1)
     } else if unpair2(enc) == 0 {
         (unpair1(enc) - 1) as nat
     } else {
         decode_nat_seq_last(unpair2(enc))
+    }
+}
+
+#[via_fn]
+proof fn decode_nat_seq_last_decreases(enc: nat) {
+    if enc != 0 && unpair1(enc) >= 1 {
+        lemma_unpair2_lt(enc);
     }
 }
 
@@ -281,6 +291,139 @@ pub proof fn lemma_encode_nat_seq_ge_len(s: Seq<nat>)
         lemma_encode_nat_seq_ge_len(tail);
         lemma_pair_ge_sum(s[0] + 1, encode_nat_seq(tail));
     }
+}
+
+//  ============================================================
+//  Decoding: reconstruct from Gödel numbers
+//  ============================================================
+
+///  Decode a justification from its Gödel number.
+pub open spec fn decode_justification(n: nat) -> Justification {
+    let tag = unpair1(n);
+    let content = unpair2(n);
+    if tag == 0 {
+        Justification::LogicAxiom
+    } else if tag == 1 {
+        Justification::Assumption
+    } else if tag == 2 {
+        Justification::ModusPonens { premise_line: unpair1(content), implication_line: unpair2(content) }
+    } else if tag == 3 {
+        Justification::Generalization { premise_line: unpair1(content), var: unpair2(content) }
+    } else {
+        Justification::LogicAxiom  //  default
+    }
+}
+
+///  Decode a proof line from its Gödel number.
+pub open spec fn decode_line(n: nat) -> (Formula, Justification) {
+    (decode_formula(unpair1(n)), decode_justification(unpair2(n)))
+}
+
+///  Decode a nat sequence from its Gödel number.
+pub open spec fn decode_nat_seq(n: nat) -> Seq<nat>
+    decreases n
+    via decode_nat_seq_decreases
+{
+    if n == 0 {
+        Seq::empty()
+    } else if unpair1(n) == 0 {
+        Seq::empty()  //  invalid encoding (elements are stored as value+1)
+    } else {
+        seq![(unpair1(n) - 1) as nat] + decode_nat_seq(unpair2(n))
+    }
+}
+
+#[via_fn]
+proof fn decode_nat_seq_decreases(n: nat) {
+    if n != 0 && unpair1(n) >= 1 {
+        lemma_unpair2_lt(n);
+    }
+}
+
+///  Decode a proof from its Gödel number.
+pub open spec fn decode_proof(s: nat) -> Proof {
+    let elems = decode_nat_seq(s);
+    Proof { lines: Seq::new(elems.len(), |i: int| decode_line(elems[i])) }
+}
+
+//  ============================================================
+//  Decoding roundtrip lemmas
+//  ============================================================
+
+///  Roundtrip: decode_justification(encode_justification(j)) == j.
+pub proof fn lemma_decode_encode_justification(j: Justification)
+    ensures decode_justification(encode_justification(j)) == j,
+{
+    match j {
+        Justification::LogicAxiom => {
+            lemma_unpair1_pair(0nat, 0nat);
+        },
+        Justification::Assumption => {
+            lemma_unpair1_pair(1nat, 0nat);
+        },
+        Justification::ModusPonens { premise_line, implication_line } => {
+            lemma_unpair1_pair(2nat, pair(premise_line, implication_line));
+            lemma_unpair2_pair(2nat, pair(premise_line, implication_line));
+            lemma_unpair1_pair(premise_line, implication_line);
+            lemma_unpair2_pair(premise_line, implication_line);
+        },
+        Justification::Generalization { premise_line, var } => {
+            lemma_unpair1_pair(3nat, pair(premise_line, var));
+            lemma_unpair2_pair(3nat, pair(premise_line, var));
+            lemma_unpair1_pair(premise_line, var);
+            lemma_unpair2_pair(premise_line, var);
+        },
+    }
+}
+
+///  Roundtrip: decode_line(encode_line(l)) == l.
+pub proof fn lemma_decode_encode_line(l: (Formula, Justification))
+    ensures decode_line(encode_line(l)) == l,
+{
+    lemma_unpair1_pair(encode(l.0), encode_justification(l.1));
+    lemma_unpair2_pair(encode(l.0), encode_justification(l.1));
+    lemma_decode_encode_formula(l.0);
+    lemma_decode_encode_justification(l.1);
+}
+
+///  Roundtrip: decode_nat_seq(encode_nat_seq(s)) == s.
+pub proof fn lemma_decode_encode_nat_seq(s: Seq<nat>)
+    ensures decode_nat_seq(encode_nat_seq(s)) =~= s,
+    decreases s.len(),
+{
+    if s.len() == 0 {
+    } else {
+        let tail = s.subrange(1, s.len() as int);
+        lemma_encode_nat_seq_nonempty(s);
+        lemma_unpair1_pair(s[0] + 1, encode_nat_seq(tail));
+        lemma_unpair2_pair(s[0] + 1, encode_nat_seq(tail));
+        lemma_decode_encode_nat_seq(tail);
+        //  decode_nat_seq(encode_nat_seq(s))
+        //  = seq![s[0]] + decode_nat_seq(encode_nat_seq(tail))
+        //  = seq![s[0]] + tail  (by IH)
+        //  = s
+        assert(s =~= seq![s[0]] + tail);
+    }
+}
+
+///  Roundtrip: decode_proof(encode_proof(p)) == p.
+pub proof fn lemma_decode_encode_proof(p: Proof)
+    ensures decode_proof(encode_proof(p)) == p,
+{
+    let lines = Seq::new(p.lines.len(), |i: int| encode_line(p.lines[i]));
+    lemma_decode_encode_nat_seq(lines);
+    //  decode_nat_seq(encode_nat_seq(lines)) =~= lines
+    //  So decode_proof(encode_proof(p)).lines =~=
+    //    Seq::new(lines.len(), |i| decode_line(lines[i]))
+    //  = Seq::new(p.lines.len(), |i| decode_line(encode_line(p.lines[i])))
+    //  = Seq::new(p.lines.len(), |i| p.lines[i])  (by decode_encode_line roundtrip)
+    //  =~= p.lines
+    assert forall|i: int| 0 <= i < p.lines.len() implies
+        decode_line(#[trigger] lines[i]) == p.lines[i]
+    by {
+        lemma_decode_encode_line(p.lines[i]);
+    }
+    assert(decode_proof(encode_proof(p)).lines =~= p.lines);
 }
 
 } //  verus!
