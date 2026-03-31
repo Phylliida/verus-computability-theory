@@ -1233,36 +1233,6 @@ pub open spec fn check_all_lines() -> CompSpec {
 ///  Each element is pair(sub_formula_enc, is_bound_flag) where is_bound_flag=1 if v is bound here.
 ///  Returns nonzero if v is free in f_enc.
 #[verifier::opaque]
-pub open spec fn has_free_var_comp() -> CompSpec {
-    //  Input: pair(f_enc, v)
-    //  BoundedRec: count = f_enc + 1 (ensures at least 1 step even when f_enc == 0)
-    //  base = pair(pair(f_enc + 1, 0), 0)  //  stack = [f_enc], found = 0
-    //  The stack encodes formulas to check. Each elem is sub_formula_enc.
-    //  After loop: found flag
-    let f_enc_expr = cs_fst(CompSpec::Id);  //  f_enc from input
-    let f_enc_plus_1 = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
-    let v_expr = cs_snd(CompSpec::Id);       //  v from input
-
-    cs_comp(
-        cs_snd(CompSpec::Id),  //  extract found from final pair(stack, found)
-        CompSpec::BoundedRec {
-            count_fn: Box::new(f_enc_plus_1),
-            base: Box::new(CompSpec::CantorPair {
-                //  Initial stack: single-element sequence with f_enc
-                left: Box::new(CompSpec::CantorPair {
-                    left: Box::new(CompSpec::Add {
-                        left: Box::new(f_enc_expr),
-                        right: Box::new(cs_const(1)),
-                    }),
-                    right: Box::new(cs_const(0)),  //  empty tail
-                }),
-                right: Box::new(cs_const(0)),  //  found = 0
-            }),
-            step: Box::new(has_free_var_step()),
-        }
-    )
-}
-
 ///  Step function for has_free_var_comp's BoundedRec.
 ///  Input: pair(i, pair(acc, pair(f_enc, v)))
 ///  acc = pair(stack, found)
@@ -1418,6 +1388,26 @@ pub open spec fn has_free_var_binary_or_quantifier() -> CompSpec {
             right: Box::new(cs_const(0)),
         }),
     }
+}
+
+pub open spec fn has_free_var_comp() -> CompSpec {
+    //  Input: pair(f_enc, v)
+    //  Result: found flag (nonzero if v is free in the formula encoded by f_enc)
+    //  NOTE: Defined AFTER has_free_var_step/process_top/binary_or_quantifier
+    //  to ensure Z3 axiom ordering matches dependency order.
+    let f_enc_expr = cs_fst(CompSpec::Id);
+    let stack_entry = CompSpec::Add { left: Box::new(f_enc_expr), right: Box::new(cs_const(1)) };
+
+    cs_comp(
+        cs_snd(CompSpec::Id),
+        CompSpec::BoundedRec {
+            count_fn: Box::new(f_enc_expr),
+            base: Box::new(cs_pair(
+                cs_pair(stack_entry, cs_const(0)),
+                cs_const(0))),
+            step: Box::new(has_free_var_step()),
+        }
+    )
 }
 
 ///  Check if an encoded formula is a sentence (no free variables).
