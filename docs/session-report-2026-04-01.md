@@ -156,6 +156,88 @@ Add check_subst_comp forward soundness to `compspec_forward_checkers5.rs`.
 5. **check_subst_atomic_terms simplified** — Only checked tags, not terms; strengthened with check_subst_one_term
 6. **check_subst_atomic_terms var extraction** — 3 snds → 4 snds (same bug pattern as #1)
 
-## Estimated Remaining Work
+## What Remains (Precise Continuation Instructions)
 
-~400 lines across Steps 2-extension through 8, spanning 1-2 focused sessions.
+### Immediate: Per-arm Eq/In helpers with exact subst_state output
+
+The compose helpers (`lemma_subst_atomic_eq_result` / `_in_result` in `compspec_subst_step_compose.rs`) currently ensure:
+- `unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest`
+- `unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0`
+- `eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)`
+
+They need to ALSO ensure the EXACT result form:
+```
+eval_comp(check_subst_step(), n) == pair(rest, pair(1nat, pair(te2, ts2)))
+```
+where `(te2, ts2) = subst_state(Eq(l,r), var, encode_term(t), te, ts)`.
+
+**Why this is needed:** The traversal chains iterate steps. Compound step helpers (step_not, step_binary, etc.) give exact `pair(rest, pair(1, pair(te, ts)))` form. The Eq/In arms need the same form for chaining.
+
+**How to prove it:**
+1. The per-term eval (`lemma_subst_one_term_valid`) already gives exact `(te_out, ts_out)` for each term
+2. Term1 output feeds into term2 input (sequential state tracking)
+3. `subst_state(Eq(l,r), var, t_enc, te, ts)` = `subst_term_state(r, var, t_enc, subst_term_state(l, var, t_enc, te, ts))`
+4. Show: `valid = 1 * (1 * 1) = 1` (each term check returns 1 for valid subst, tags match returns 1)
+5. Show: state = `pair(te2, ts2)` from term2's output
+
+**Architecture:** New file `compspec_subst_atomic_exact.rs` (per rlimit tips — isolation). Calls the existing compose helper + adds the exact state extraction.
+
+### Then: Traversal verifies
+
+`lemma_subst_traversal2` in `compspec_subst_induction2.rs`:
+- Compound arms (Not, And, Or, Implies, Iff, Forall, Exists): use existing step helpers (step_not, step_binary, etc.) — these preserve (te, ts) and are CORRECT
+- Atomic arms (Eq, In): use new per-arm helpers with exact subst_state output
+- Ensures: `iterate(fuel, acc, s) == iterate(fuel-cost, pair(rest, pair(1, pair(te2, ts2))), s)`
+- rlimit likely needs 800-1500 for the 9-arm function; may need arm extraction per rlimit tips
+
+**CRITICAL: Do NOT use step_eq/step_in from compspec_subst_induction_steps.rs** — they have WRONG ensures for the strengthened check (claim unchanged te/ts). They "verify" only by calling broken helpers.
+
+### Then: Backward entry point + chain verification
+
+Update `lemma_check_subst_comp_backward()` in `compspec_subst_helpers.rs` to call new traversal. Verify chain: `compspec_subst_helpers.rs` → `compspec_logic_axiom_helpers.rs` → `compspec_axiom_correct.rs` → `compspec_dispatchers.rs`.
+
+### Then: Forward proofs + assembly
+
+1. Complete universal_inst forward (`compspec_forward_checkers5.rs`) — structure already done (7 verified)
+2. Build eq_subst forward (~200 lines)
+3. Phase 6 assembly (~200 lines) → remove the last `assume`
+
+## Key Knowledge for Continuation
+
+| Topic | Detail |
+|-------|--------|
+| **Definition ordering** | Spec fns MUST be defined AFTER dependencies for Z3 structural equality |
+| **Module isolation** | 1 heavy function per file — sibling bodies pollute Z3 context |
+| **Named sub-expressions** | csa_* for check_subst, esb_* for eq_subst — enables Z3 matching |
+| **Structural equality bridge** | `assert(f() == tree); assert(eval_comp(f(), n) == eval_comp(tree, n));` |
+| **unpair2 chain** | Need explicit `lemma_unpair2_pair` before `lemma_unpair1_pair` for inner pair components |
+| **step_eq/step_in UNSOUND** | Old helpers in compspec_subst_induction_steps.rs have wrong ensures — DO NOT USE |
+| **f_enc+1 fuel** | has_free_var_comp uses f_enc+1 for soundness at encode=0 |
+| **exists\|f\| encode(f) == enc** | Forward proofs need valid encoding precondition |
+| **subst_state spec fn** | Computes exact (te, ts) after traversal — defined in compspec_subst_induction2.rs |
+| **Per-term eval exact state** | lemma_subst_one_term_valid gives `if phi==var { if ts==0 { t_val } else { te } } else { te }` |
+
+## Full File Inventory
+
+### New files (this session):
+| File | Verified | Purpose |
+|------|----------|---------|
+| compspec_eq_subst_backward.rs | 22 | eq_subst backward proof (Phase 3) |
+| compspec_hfv_unfold.rs | 1 | has_free_var_comp BoundedRec unfold |
+| compspec_free_var_detection.rs | 6 | has_free_var detection + sound (no preconditions) |
+| compspec_free_var_detection2.rs | 2 | Isolated Eq/In atomic step helpers for detection |
+| compspec_forward_checkers4.rs | 10 | vacuous_quant forward proof |
+| compspec_forward_checkers5.rs | 7 | universal_inst forward skeleton |
+| compspec_subst_term_eval.rs | 1 | Per-term eval with exact state output |
+| compspec_subst_extract.rs | 2 | Value extraction (Eq + In) |
+| compspec_subst_step_helpers2.rs | 2 | Dispatch + term checks (Part 1) |
+| compspec_subst_step_compose.rs | 4 | Result composition (Part 2) |
+| compspec_subst_induction2.rs | 2 | Traversal spec fns + skeleton |
+
+### Bugs found: 6 (all fixed)
+1. check_eq_subst_step x_enc/y_enc extraction (3→4 snds)
+2. check_axiom_eq_subst_right swap direction ((x,y)→(y,x))
+3. has_free_var_comp fuel (f_enc→f_enc+1)
+4. Z3 axiom ordering (definition order matters)
+5. check_subst_atomic_terms simplified (tags only→full term check)
+6. check_subst_atomic_terms var extraction (3→4 snds)
