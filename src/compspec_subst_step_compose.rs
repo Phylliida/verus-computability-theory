@@ -25,9 +25,10 @@ pub proof fn lemma_subst_atomic_eq_result(
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
         let n = pair(0nat, pair(acc, s));
-        //  Only references check_subst_atomic_terms (small tree), not check_subst_step (huge)
         unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest &&
-        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0
+        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0 &&
+        //  Exact dispatch equality
+        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)
     }),
 {
     let f = Formula::Eq { left, right };
@@ -94,9 +95,9 @@ pub proof fn lemma_subst_atomic_in_result(
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
         let n = pair(0nat, pair(acc, s));
-        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n) &&
         unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest &&
-        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0
+        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0 &&
+        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)
     }),
 {
     let f = Formula::In { left, right };
