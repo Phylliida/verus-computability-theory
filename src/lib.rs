@@ -131,7 +131,7 @@ pub mod compspec_forward_checkers4;
 pub mod compspec_forward_checkers5;
 
 #[cfg(verus_keep_ghost)]
-pub mod compspec_subst_step_helpers2;
+pub mod compspec_subst_term_eval;
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
