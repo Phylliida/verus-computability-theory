@@ -40,11 +40,16 @@ pub proof fn lemma_subst_one_term_valid(
         t_set_val == 0 || t_enc_val == t_val,
     ensures ({
         let term_check = check_subst_one_term(phi_term_cs, result_term_cs, var_cs, t_enc_cs, t_set_cs);
-        //  v = 1 (nonzero)
+        //  v nonzero
         eval_comp(cs_fst(term_check), input) != 0 &&
         //  t_enc invariant maintained
         (eval_comp(cs_snd(cs_snd(term_check)), input) == 0 ||
-         eval_comp(cs_fst(cs_snd(term_check)), input) == t_val)
+         eval_comp(cs_fst(cs_snd(term_check)), input) == t_val) &&
+        //  Exact output state (for traversal chaining)
+        eval_comp(cs_fst(cs_snd(term_check)), input) ==
+            (if phi_term_val == var_val { if t_set_val == 0 { t_val } else { t_enc_val } } else { t_enc_val }) &&
+        eval_comp(cs_snd(cs_snd(term_check)), input) ==
+            (if phi_term_val == var_val { if t_set_val == 0 { 1nat } else { t_set_val } } else { t_set_val })
     }),
 {
     let term_check = check_subst_one_term(phi_term_cs, result_term_cs, var_cs, t_enc_cs, t_set_cs);
