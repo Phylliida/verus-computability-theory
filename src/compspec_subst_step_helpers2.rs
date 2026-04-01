@@ -77,4 +77,82 @@ pub proof fn lemma_subst_eq_terms_pass(
         eval_comp(cs_snd(cs_snd(csa_term1())), n), t_val);
 }
 
+///  Part 1 for In: dispatch + term checks.
+///  Tag 1: first IfZero else, second IfZero (Pred(1)=0) then → atomic_terms.
+pub proof fn lemma_subst_in_terms_pass(
+    left: Term, right: Term, var: nat, t: Term,
+    rest: nat, valid: nat, t_enc_val: nat, t_set_val: nat,
+    phi_enc: nat, result_enc: nat,
+)
+    requires
+        valid > 0,
+        t_set_val == 0 || t_enc_val == encode_term(t),
+    ensures ({
+        let f = Formula::In { left, right };
+        let entry = pair(encode(f), encode(subst(f, var, t)));
+        let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
+        let s = pair(phi_enc, pair(result_enc, var));
+        let n = pair(0nat, pair(acc, s));
+        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n) &&
+        eval_comp(cs_fst(csa_term1()), n) != 0 &&
+        eval_comp(cs_fst(csa_term2()), n) != 0 &&
+        eval_comp(csa_rest(), n) == rest
+    }),
+{
+    let f = Formula::In { left, right };
+    let entry = pair(encode(f), encode(subst(f, var, t)));
+    let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
+    let s = pair(phi_enc, pair(result_enc, var));
+    let n = pair(0nat, pair(acc, s));
+    let t_val = encode_term(t);
+
+    assert(eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)) by {
+        lemma_subst_step_dispatch(0nat, entry + 1, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc, var);
+        lemma_encode_is_pair(f);
+        lemma_encode_is_pair(subst(f, var, t));
+        lemma_unpair1_pair(1nat, pair(encode_term(left), encode_term(right)));
+        lemma_unpair1_pair(1nat, pair(encode_term(subst_term(left, var, t)), encode_term(subst_term(right, var, t))));
+        crate::compspec_subst_extract::extract_atomic_in_values(left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+        let phi_tag_cs = cs_fst(csa_phi_node());
+        //  Tag 1: first IfZero else (tag != 0), then Pred(1)=0 → second IfZero then
+        lemma_eval_ifzero_else(phi_tag_cs,
+            check_subst_atomic_terms(),
+            CompSpec::IfZero {
+                cond: Box::new(cs_comp(CompSpec::Pred, phi_tag_cs)),
+                then_br: Box::new(check_subst_atomic_terms()),
+                else_br: Box::new(CompSpec::IfZero {
+                    cond: Box::new(cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, phi_tag_cs))),
+                    then_br: Box::new(check_subst_unary()),
+                    else_br: Box::new(check_subst_compound()),
+                }),
+            }, n);
+        lemma_eval_comp(CompSpec::Pred, phi_tag_cs, n);
+        lemma_eval_pred(1nat);
+        lemma_eval_ifzero_then(cs_comp(CompSpec::Pred, phi_tag_cs),
+            check_subst_atomic_terms(),
+            CompSpec::IfZero {
+                cond: Box::new(cs_comp(CompSpec::Pred, cs_comp(CompSpec::Pred, phi_tag_cs))),
+                then_br: Box::new(check_subst_unary()),
+                else_br: Box::new(check_subst_compound()),
+            }, n);
+    }
+
+    crate::compspec_subst_extract::extract_atomic_in_values(left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+    match left { Term::Var { index } => {} }
+    match right { Term::Var { index } => {} }
+
+    lemma_subst_one_term_valid(
+        cs_fst(cs_snd(csa_phi_node())), cs_fst(cs_snd(csa_result_node())),
+        csa_var(), csa_t_enc(), csa_t_set(), n,
+        encode_term(left), encode_term(subst_term(left, var, t)), var,
+        t_enc_val, t_set_val, t_val);
+
+    lemma_subst_one_term_valid(
+        cs_snd(cs_snd(csa_phi_node())), cs_snd(cs_snd(csa_result_node())),
+        csa_var(), cs_fst(cs_snd(csa_term1())), cs_snd(cs_snd(csa_term1())), n,
+        encode_term(right), encode_term(subst_term(right, var, t)), var,
+        eval_comp(cs_fst(cs_snd(csa_term1())), n),
+        eval_comp(cs_snd(cs_snd(csa_term1())), n), t_val);
+}
+
 } // verus!
