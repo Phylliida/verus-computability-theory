@@ -793,34 +793,38 @@ pub open spec fn check_subst_one_term(
     }
 }
 
+///  Named sub-expressions for check_subst_atomic_terms (Z3 axiom matching).
+pub open spec fn csa_entry() -> CompSpec { cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc()))) }
+pub open spec fn csa_rest() -> CompSpec { cs_snd(cs_fst(br_acc())) }
+pub open spec fn csa_phi_node() -> CompSpec { cs_fst(csa_entry()) }
+pub open spec fn csa_result_node() -> CompSpec { cs_snd(csa_entry()) }
+pub open spec fn csa_var() -> CompSpec { cs_snd(cs_snd(cs_snd(cs_snd(CompSpec::Id)))) }
+pub open spec fn csa_t_enc() -> CompSpec { cs_fst(cs_snd(cs_snd(br_acc()))) }
+pub open spec fn csa_t_set() -> CompSpec { cs_snd(cs_snd(cs_snd(br_acc()))) }
+
+///  Term1 check result.
+pub open spec fn csa_term1() -> CompSpec {
+    check_subst_one_term(
+        cs_fst(cs_snd(csa_phi_node())),
+        cs_fst(cs_snd(csa_result_node())),
+        csa_var(), csa_t_enc(), csa_t_set())
+}
+
+///  Term2 check result (uses term1's output state).
+pub open spec fn csa_term2() -> CompSpec {
+    check_subst_one_term(
+        cs_snd(cs_snd(csa_phi_node())),
+        cs_snd(cs_snd(csa_result_node())),
+        csa_var(),
+        cs_fst(cs_snd(csa_term1())),
+        cs_snd(cs_snd(csa_term1())))
+}
+
 pub open spec fn check_subst_atomic_terms() -> CompSpec {
-    let acc = br_acc();
-    let stack = cs_fst(acc);
-    let t_enc = cs_fst(cs_snd(cs_snd(acc)));
-    let t_set = cs_snd(cs_snd(cs_snd(acc)));
-    //  Fixed: 4 snds to reach var
-    let var = cs_snd(cs_snd(cs_snd(cs_snd(CompSpec::Id))));
-    let entry = cs_comp(CompSpec::Pred, cs_fst(stack));
-    let rest = cs_snd(stack);
-    let phi_node = cs_fst(entry);
-    let result_node = cs_snd(entry);
-    let phi_tag = cs_fst(phi_node);
-    let result_tag = cs_fst(result_node);
-
-    let phi_t1 = cs_fst(cs_snd(phi_node));
-    let phi_t2 = cs_snd(cs_snd(phi_node));
-    let res_t1 = cs_fst(cs_snd(result_node));
-    let res_t2 = cs_snd(cs_snd(result_node));
-
-    //  Check term1, get intermediate state
-    let term1 = check_subst_one_term(phi_t1, res_t1, var, t_enc, t_set);
-    //  Check term2 with updated t_enc/t_set from term1
-    let term2 = check_subst_one_term(phi_t2, res_t2, var,
-        cs_fst(cs_snd(term1)), cs_snd(cs_snd(term1)));
-
-    cs_pair(rest, cs_pair(
-        cs_and(cs_eq(phi_tag, result_tag), cs_and(cs_fst(term1), cs_fst(term2))),
-        cs_snd(term2),
+    cs_pair(csa_rest(), cs_pair(
+        cs_and(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())),
+               cs_and(cs_fst(csa_term1()), cs_fst(csa_term2()))),
+        cs_snd(csa_term2()),
     ))
 }
 
