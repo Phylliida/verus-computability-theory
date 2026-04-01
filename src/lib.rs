@@ -140,7 +140,7 @@ pub mod compspec_subst_extract;
 pub mod compspec_subst_step_helpers2;
 
 #[cfg(verus_keep_ghost)]
-pub mod compspec_subst_atomic_compose;
+pub mod compspec_subst_step_compose;
 
 #[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
