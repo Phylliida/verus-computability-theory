@@ -45,8 +45,8 @@ pub open spec fn subst_state(f: Formula, var: nat, t_enc: nat, te: nat, ts: nat)
 proof fn lemma_subst_state_invariant(f: Formula, var: nat, t_enc: nat, te: nat, ts: nat)
     requires ts == 0 || te == t_enc,
     ensures ({
-        let (te', ts') = subst_state(f, var, t_enc, te, ts);
-        ts' == 0 || te' == t_enc
+        let (te_out, ts_out) = subst_state(f, var, t_enc, te, ts);
+        ts_out == 0 || te_out == t_enc
     }),
     decreases f,
 {
