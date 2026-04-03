@@ -11,17 +11,13 @@ verus! {
 //  ====================================================================
 //  Forward soundness: check_subst_comp accepts → result is valid subst.
 //
-//  Strategy: structural induction on phi.
-//  At each node, the checker's acceptance constrains result_enc.
-//  We extract t = Var{te_final} from the iterate state and show
+//  Strategy: structural induction on phi. At each node, the checker's
+//  acceptance constrains result_enc. We construct t = Var{te_final}
+//  from the checker's discovered state and show
 //  result_enc == encode(subst(phi, var, t)).
-//
-//  For t_set == 0 (var not found): result == phi, any t works.
-//  For t_set != 0: te is the discovered t value.
 //  ====================================================================
 
 ///  Forward soundness entry point.
-///  If check_subst_comp accepts, result_enc encodes subst(phi, var, t) for some t.
 pub proof fn lemma_check_subst_comp_forward(phi_enc: nat, result_enc: nat, var: nat)
     requires
         eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
@@ -30,228 +26,224 @@ pub proof fn lemma_check_subst_comp_forward(phi_enc: nat, result_enc: nat, var: 
     ensures
         exists|t: Term| decode_formula(result_enc) == subst(decode_formula(phi_enc), var, t),
 {
-    //  Get concrete formulas from encodings
-    let phi_f: Formula = choose|f: Formula| encode(f) == phi_enc;
-    let result_f: Formula = choose|f: Formula| encode(f) == result_enc;
-    lemma_decode_encode_formula(phi_f);
-    lemma_decode_encode_formula(result_f);
-    //  decode(phi_enc) == phi_f, decode(result_enc) == result_f
-    //  encode(phi_f) == phi_enc, encode(result_f) == result_enc
+    let phi: Formula = choose|f: Formula| encode(f) == phi_enc;
+    let result: Formula = choose|f: Formula| encode(f) == result_enc;
+    lemma_decode_encode_formula(phi);
+    lemma_decode_encode_formula(result);
 
-    let phi = decode_formula(phi_enc);
-    let result = decode_formula(result_enc);
+    //  Unfold check_subst_comp to iterate (fuel = phi_enc + 1)
+    lemma_check_subst_unfold(phi_enc, result_enc, var);
 
-    //  Use backward proof: for ANY t, check_subst_comp accepts (phi, subst(phi, var, t), var).
-    //  The forward proof shows the checker ONLY accepts valid substitutions.
-    //  We construct t from the checker's discovered state.
-
-    //  Key insight: the backward proof shows check_subst_comp_backward(phi, var, t) for all t.
-    //  For the forward direction, we show result == subst(phi, var, t) for a specific t.
-
-    //  Strategy: use the backward proof with t = result's first var-position term.
-    //  If var doesn't appear in phi, result == phi and any t works.
-    //  If var appears, extract t from the first var position in result.
-
-    //  Simple case: var not free in phi
-    //  In this case, the checker verifies all terms match (no var positions).
-    //  So result must structurally equal phi.
-
-    //  For now, construct t based on phi structure and show the property.
-    //  We use induction on phi_f (= phi).
-
-    //  The checker processes (phi_enc, result_enc) and if it accepts with state (te, ts):
-    //  - If ts == 0: all terms in phi had phi_term != var, so result == phi
-    //    → choose t = Var{0} (or any), subst(phi, var, t) == phi
-    //  - If ts != 0: te is the discovered substitution term
-    //    → choose t = Var{te}, then result == subst(phi, var, t)
-
-    //  The core proof: structural induction on phi showing the iterate constrains result.
-    //  We use the backward walk as a COMPARISON: the iterate on (phi, result) must produce
-    //  the same state transitions as the iterate on (phi, subst(phi, var, t)) for the right t.
-
-    //  For now, use the inductive witness construction:
-    let t = extract_subst_witness(phi_f, result_f, var);
-    assert(result_f == subst(phi_f, var, t)) by {
-        lemma_extract_witness_correct(phi_f, result_f, var, phi_enc, result_enc);
-    }
+    //  Forward walk by structural induction
+    let t = lemma_forward_walk(phi, result, var, phi_enc, result_enc);
+    assert(result == subst(phi, var, t));
+    //  Since decode(phi_enc) == phi and decode(result_enc) == result:
+    assert(decode_formula(result_enc) == subst(decode_formula(phi_enc), var, t));
 }
 
-//  ====================================================================
-//  Witness extraction: given phi and result, find t such that
-//  result == subst(phi, var, t).
-//  ====================================================================
-
-///  Extract the substitution term from a (phi, result) pair.
-///  Walks phi looking for first occurrence of Var(var).
-///  At that position in result, the term is t.
-///  If var doesn't occur, returns Var{0} (arbitrary).
-pub open spec fn extract_subst_witness(phi: Formula, result: Formula, var: nat) -> Term
-    decreases phi,
-{
-    match phi {
-        Formula::Eq { left, right } | Formula::In { left, right } => {
-            match left {
-                Term::Var { index } => if index == var {
-                    //  Found var at left position — extract t from result
-                    match result {
-                        Formula::Eq { left: rl, .. } | Formula::In { left: rl, .. } => rl,
-                        _ => Term::Var { index: 0 },
-                    }
-                } else {
-                    //  Check right position
-                    match right {
-                        Term::Var { index: ri } => if ri == var {
-                            match result {
-                                Formula::Eq { right: rr, .. } | Formula::In { right: rr, .. } => rr,
-                                _ => Term::Var { index: 0 },
-                            }
-                        } else {
-                            Term::Var { index: 0 }  //  var not here
-                        }
-                    }
-                }
-            }
-        },
-        Formula::Not { sub } => extract_subst_witness(*sub, match result {
-            Formula::Not { sub: rs } => *rs,
-            _ => result,
-        }, var),
-        Formula::And { left, right } | Formula::Or { left, right }
-        | Formula::Implies { left, right } | Formula::Iff { left, right } => {
-            let rl = match result {
-                Formula::And { left: rl, .. } | Formula::Or { left: rl, .. }
-                | Formula::Implies { left: rl, .. } | Formula::Iff { left: rl, .. } => *rl,
-                _ => result,
-            };
-            let rr = match result {
-                Formula::And { right: rr, .. } | Formula::Or { right: rr, .. }
-                | Formula::Implies { right: rr, .. } | Formula::Iff { right: rr, .. } => *rr,
-                _ => result,
-            };
-            let t_left = extract_subst_witness(*left, rl, var);
-            let t_right = extract_subst_witness(*right, rr, var);
-            //  Use left's witness if it found var, else right's
-            if has_free_var(*left, var) { t_left } else { t_right }
-        },
-        Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
-            if v == var {
-                Term::Var { index: 0 }  //  var is bound here, no substitution
-            } else {
-                let rs = match result {
-                    Formula::Forall { sub: rs, .. } | Formula::Exists { sub: rs, .. } => *rs,
-                    _ => result,
-                };
-                extract_subst_witness(*sub, rs, var)
-            }
-        },
-    }
-}
-
-///  The extracted witness is correct: result == subst(phi, var, t).
-///  Requires: the checker accepted (phi_enc, result_enc, var).
-proof fn lemma_extract_witness_correct(
+///  Forward walk: structural induction on phi.
+///  Returns the witness t such that result == subst(phi, var, t).
+proof fn lemma_forward_walk(
     phi: Formula, result: Formula, var: nat,
     phi_enc: nat, result_enc: nat,
-)
+) -> (t: Term)
     requires
         encode(phi) == phi_enc,
         encode(result) == result_enc,
         eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
-    ensures ({
-        let t = extract_subst_witness(phi, result, var);
-        result == subst(phi, var, t)
-    }),
+    ensures
+        result == subst(phi, var, t),
     decreases phi,
 {
-    let t = extract_subst_witness(phi, result, var);
+    //  The checker does phi_enc + 1 iterations of check_subst_step.
+    //  For each formula variant, we analyze the checks.
 
-    //  Use backward proof: check_subst_comp accepts (phi, subst(phi, var, t), var)
-    lemma_check_subst_comp_backward(phi, var, t);
+    //  Use backward proof: for any t, the checker accepts (phi, subst(phi, var, t)).
+    //  The backward traversal gives the exact iterate behavior.
+    //  For the forward proof, we use the backward result as a TEMPLATE:
+    //  the checker's acceptance constrains result to be a valid substitution.
 
-    //  Both (phi, result) and (phi, subst(phi, var, t)) are accepted by the checker.
-    //  Since the checker is a deterministic parallel walk that verifies structural
-    //  equality up to substitution, and there's only one valid substitution result
-    //  for a given (phi, var, t_enc), the results must be identical.
-
-    //  This requires showing the checker is INJECTIVE on the second argument:
-    //  for fixed (phi_enc, var), if check_subst_comp accepts both (phi_enc, r1, var)
-    //  and (phi_enc, r2, var) with the same discovered t, then r1 == r2.
-
-    //  TODO: Complete inductive proof
-    //  For now, match on phi and prove each case
     match phi {
         Formula::Eq { left, right } => {
-            lemma_forward_eq(phi, left, right, result, var, phi_enc, result_enc);
+            lemma_forward_atomic_eq(phi, left, right, result, var, phi_enc, result_enc)
         },
         Formula::In { left, right } => {
-            lemma_forward_in(phi, left, right, result, var, phi_enc, result_enc);
+            lemma_forward_atomic_in(phi, left, right, result, var, phi_enc, result_enc)
         },
         Formula::Not { sub } => {
-            //  TODO
+            //  The checker pushes (sub, result_sub).
+            //  By induction: sub_result == subst(sub, var, t).
+            //  result == Not(sub_result) == subst(Not(sub), var, t).
+            //  TODO: implement compound case
+            let t = Term::Var { index: 0 };
+            //  PLACEHOLDER: use backward + forward walk for Not
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::And { left, right } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::Or { left, right } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::Implies { left, right } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::Iff { left, right } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::Forall { var: v, sub } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
         Formula::Exists { var: v, sub } => {
-            //  TODO
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
         },
     }
 }
 
-///  Forward proof for Eq: if checker accepts (Eq(l,r), result, var),
-///  then result == subst(Eq(l,r), var, t) for the extracted t.
-proof fn lemma_forward_eq(
+///  Forward proof for Eq(left, right).
+///  The checker does 1 step checking tags + terms, then empty-stack stability.
+///  If accepted: result has Eq structure with compatible terms.
+proof fn lemma_forward_atomic_eq(
     phi: Formula, left: Term, right: Term,
     result: Formula, var: nat,
     phi_enc: nat, result_enc: nat,
-)
+) -> (t: Term)
     requires
         phi == (Formula::Eq { left, right }),
         encode(phi) == phi_enc,
         encode(result) == result_enc,
         eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
-    ensures ({
-        let t = extract_subst_witness(phi, result, var);
-        result == subst(phi, var, t)
-    }),
+    ensures
+        result == subst(phi, var, t),
 {
-    //  TODO: implement
-    //  1. Unfold check_subst_comp to iterate
-    //  2. Show one step processes (phi, result)
-    //  3. From acceptance: tags match → result has Eq tag
-    //  4. From term checks: terms satisfy substitution property
-    //  5. Reconstruct: result == Eq(subst_term(left, var, t), subst_term(right, var, t))
+    //  The checker accepted. By the backward proof, for the RIGHT t,
+    //  the checker also accepts (phi, subst(phi, var, t)).
+    //  For Eq, the checker does exactly 1 meaningful step that checks
+    //  tag match + term compatibility.
+    //
+    //  Key insight: match on left and right to determine var occurrences.
+    //  The checker's acceptance constrains result's terms.
+
+    match left { Term::Var { index: a } => {
+    match right { Term::Var { index: b } => {
+
+    //  result must be Eq (from tag match):
+    //  The checker checks unpair1(phi_enc) == unpair1(result_enc).
+    //  phi has tag 0 (Eq). If checker accepts, result_enc has tag 0.
+    //  Since result is a valid Formula encoding with tag 0, result = Eq(Var(a'), Var(b')).
+
+    match result {
+        Formula::Eq { left: rl, right: rr } => {
+            match rl { Term::Var { index: ra } => {
+            match rr { Term::Var { index: rb } => {
+
+            //  Now construct t based on which terms are var:
+            if a == var {
+                //  left is the substituted variable
+                let t = Term::Var { index: ra };  //  t comes from result's left term
+                //  Need: result == subst(Eq(Var(a), Var(b)), var, t)
+                //  subst gives: Eq(t, if b == var then t else Var(b))
+                //  So need: Var(rb) == if b == var then t else Var(b)
+
+                if b == var {
+                    //  Both positions have var → both should map to same t
+                    //  Checker verifies rb == ra (second term verify against discovered te)
+                    //  Use backward proof as witness that this is correct
+                    lemma_check_subst_comp_backward(phi, var, t);
+                    //  Now: check_subst_comp(phi_enc, encode(subst(phi,var,t)), var) != 0
+                    //  subst(phi, var, t) = Eq(Var(ra), Var(ra))
+                    //  If result != subst(phi, var, t), the checker would need to produce
+                    //  the same valid for two different result_encs, which we show below.
+                    //  For now, we verify with backward + result structure.
+                    assert(subst(phi, var, t) == Formula::Eq {
+                        left: Term::Var { index: ra },
+                        right: Term::Var { index: ra },
+                    });
+                    //  TODO: show rb == ra from checker constraint
+                    //  This requires analyzing the per-term check
+                    t
+                } else {
+                    //  Only left has var
+                    //  Checker verifies rb == b (non-var term must match)
+                    //  Use backward proof
+                    lemma_check_subst_comp_backward(phi, var, t);
+                    assert(subst(phi, var, t) == Formula::Eq {
+                        left: t,
+                        right: Term::Var { index: b },
+                    });
+                    //  TODO: show rb == b from checker constraint
+                    t
+                }
+            } else if b == var {
+                //  Only right has var
+                let t = Term::Var { index: rb };
+                lemma_check_subst_comp_backward(phi, var, t);
+                assert(subst(phi, var, t) == Formula::Eq {
+                    left: Term::Var { index: a },
+                    right: t,
+                });
+                //  TODO: show ra == a from checker constraint
+                t
+            } else {
+                //  Neither position has var → result must equal phi
+                let t = Term::Var { index: 0 };
+                //  Checker verifies: ra == a and rb == b
+                //  Use backward proof
+                lemma_check_subst_comp_backward(phi, var, t);
+                //  subst(phi, var, Var(0)) == phi (since var not in phi)
+                assert(subst(phi, var, t) == phi);
+                //  TODO: show ra == a and rb == b from checker constraint
+                t
+            }
+
+            }}  //  match rr
+            }}  //  match rl
+        },
+        //  result has non-Eq structure: contradiction with checker acceptance
+        //  (checker requires tag match, phi has tag 0 = Eq)
+        _ => {
+            //  TODO: derive contradiction from tag mismatch
+            let t = Term::Var { index: 0 };
+            lemma_check_subst_comp_backward(phi, var, t);
+            t
+        }
+    }
+
+    }}  //  match right
+    }}  //  match left
 }
 
-///  Forward proof for In: same as Eq but tag 1.
-proof fn lemma_forward_in(
+///  Forward proof for In(left, right). Mirror of Eq with tag 1.
+proof fn lemma_forward_atomic_in(
     phi: Formula, left: Term, right: Term,
     result: Formula, var: nat,
     phi_enc: nat, result_enc: nat,
-)
+) -> (t: Term)
     requires
         phi == (Formula::In { left, right }),
         encode(phi) == phi_enc,
         encode(result) == result_enc,
         eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
-    ensures ({
-        let t = extract_subst_witness(phi, result, var);
-        result == subst(phi, var, t)
-    }),
+    ensures
+        result == subst(phi, var, t),
 {
-    //  TODO: implement (mirror of Eq)
+    //  TODO: mirror of Eq case
+    let t = Term::Var { index: 0 };
+    lemma_check_subst_comp_backward(phi, var, t);
+    t
 }
 
 } // verus!
