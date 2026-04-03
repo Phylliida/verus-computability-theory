@@ -12,7 +12,7 @@ verus! {
 ///  The caller uses Part 1's step==atomic_terms equality to derive step result.
 #[verifier::rlimit(800)]
 pub proof fn lemma_subst_atomic_eq_result(
-    left: Term, right: Term, var: nat, t: Term,
+    i: nat, left: Term, right: Term, var: nat, t: Term,
     rest: nat, valid: nat, t_enc_val: nat, t_set_val: nat,
     phi_enc: nat, result_enc: nat,
 )
@@ -24,21 +24,20 @@ pub proof fn lemma_subst_atomic_eq_result(
         let entry = pair(encode(f), encode(subst(f, var, t)));
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
-        let n = pair(0nat, pair(acc, s));
-        unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest &&
-        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0 &&
-        //  Exact dispatch equality
-        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)
+        let n = pair(i, pair(acc, s));
+        //  Exact result: pair(rest, pair(1, state)) where state = cs_snd(csa_term2()) eval
+        eval_comp(check_subst_step(), n) == pair(rest, pair(1nat,
+            eval_comp(cs_snd(csa_term2()), n)))
     }),
 {
     let f = Formula::Eq { left, right };
     let entry = pair(encode(f), encode(subst(f, var, t)));
     let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     let s = pair(phi_enc, pair(result_enc, var));
-    let n = pair(0nat, pair(acc, s));
+    let n = pair(i, pair(acc, s));
 
     //  Part 1: v1 != 0, v2 != 0, rest value
-    lemma_subst_eq_terms_pass(left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+    lemma_subst_eq_terms_pass(i, left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
 
     //  Structural equality
     let valid_cs = cs_and(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())),
@@ -47,7 +46,7 @@ pub proof fn lemma_subst_atomic_eq_result(
 
     //  Tags (scoped)
     assert(eval_comp(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())), n) == 1nat) by {
-        extract_atomic_eq_values(left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+        extract_atomic_eq_values(i, left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
         lemma_eval_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node()), n);
     }
 
@@ -55,34 +54,29 @@ pub proof fn lemma_subst_atomic_eq_result(
     assert(eval_comp(check_subst_atomic_terms(), n)
         == eval_comp(cs_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2()))), n));
 
-    //  Eval chain
+    //  Eval chain — v1 == 1 and v2 == 1 (from terms_pass)
     let v1 = eval_comp(cs_fst(csa_term1()), n);
     let v2 = eval_comp(cs_fst(csa_term2()), n);
+    assert(v1 == 1 && v2 == 1);
     lemma_eval_cs_and(cs_fst(csa_term1()), cs_fst(csa_term2()), n);
     lemma_eval_cs_and(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())),
         cs_and(cs_fst(csa_term1()), cs_fst(csa_term2())), n);
+    //  valid = 1 * (1 * 1) = 1
+    assert(eval_comp(valid_cs, n) == 1nat);
     lemma_eval_pair(valid_cs, cs_snd(csa_term2()), n);
     lemma_eval_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2())), n);
-    assert(1nat * (v1 * v2) != 0) by (nonlinear_arith) requires v1 != 0, v2 != 0;
 
-    //  Explicitly chain: eval_comp(cs_pair(...), n) → pair(rest, pair(v, state))
-    let at_result = eval_comp(cs_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2()))), n);
-    lemma_unpair1_pair(rest, eval_comp(cs_pair(valid_cs, cs_snd(csa_term2())), n));
-    assert(unpair1(at_result) == rest);
-    lemma_unpair2_pair(rest, eval_comp(cs_pair(valid_cs, cs_snd(csa_term2())), n));
-    lemma_unpair1_pair(1nat * (v1 * v2), eval_comp(cs_snd(csa_term2()), n));
-    assert(unpair1(unpair2(at_result)) != 0);
-
-    //  Bridge: check_subst_atomic_terms result == at_result
-    assert(eval_comp(check_subst_atomic_terms(), n) == at_result);
-    assert(unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest);
-    assert(unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0);
+    //  Full result: pair(rest, pair(1, cs_snd(csa_term2()) eval))
+    let state = eval_comp(cs_snd(csa_term2()), n);
+    assert(eval_comp(cs_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2()))), n)
+        == pair(rest, pair(1nat, state)));
+    assert(eval_comp(check_subst_atomic_terms(), n) == pair(rest, pair(1nat, state)));
 }
 
 ///  Atomic In: same as Eq but with tag 1 dispatch.
 #[verifier::rlimit(800)]
 pub proof fn lemma_subst_atomic_in_result(
-    left: Term, right: Term, var: nat, t: Term,
+    i: nat, left: Term, right: Term, var: nat, t: Term,
     rest: nat, valid: nat, t_enc_val: nat, t_set_val: nat,
     phi_enc: nat, result_enc: nat,
 )
@@ -94,20 +88,20 @@ pub proof fn lemma_subst_atomic_in_result(
         let entry = pair(encode(f), encode(subst(f, var, t)));
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
-        let n = pair(0nat, pair(acc, s));
-        unpair1(eval_comp(check_subst_atomic_terms(), n)) == rest &&
-        unpair1(unpair2(eval_comp(check_subst_atomic_terms(), n))) != 0 &&
-        eval_comp(check_subst_step(), n) == eval_comp(check_subst_atomic_terms(), n)
+        let n = pair(i, pair(acc, s));
+        //  Exact result
+        eval_comp(check_subst_step(), n) == pair(rest, pair(1nat,
+            eval_comp(cs_snd(csa_term2()), n)))
     }),
 {
     let f = Formula::In { left, right };
     let entry = pair(encode(f), encode(subst(f, var, t)));
     let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     let s = pair(phi_enc, pair(result_enc, var));
-    let n = pair(0nat, pair(acc, s));
+    let n = pair(i, pair(acc, s));
 
     crate::compspec_subst_step_helpers2::lemma_subst_in_terms_pass(
-        left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+        i, left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
 
     let valid_cs = cs_and(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())),
         cs_and(cs_fst(csa_term1()), cs_fst(csa_term2())));
@@ -115,7 +109,7 @@ pub proof fn lemma_subst_atomic_in_result(
 
     assert(eval_comp(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())), n) == 1nat) by {
         crate::compspec_subst_extract::extract_atomic_in_values(
-            left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
+            i, left, right, var, t, rest, valid, t_enc_val, t_set_val, phi_enc, result_enc);
         lemma_eval_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node()), n);
     }
 
@@ -124,18 +118,18 @@ pub proof fn lemma_subst_atomic_in_result(
 
     let v1 = eval_comp(cs_fst(csa_term1()), n);
     let v2 = eval_comp(cs_fst(csa_term2()), n);
+    assert(v1 == 1 && v2 == 1);
     lemma_eval_cs_and(cs_fst(csa_term1()), cs_fst(csa_term2()), n);
     lemma_eval_cs_and(cs_eq(cs_fst(csa_phi_node()), cs_fst(csa_result_node())),
         cs_and(cs_fst(csa_term1()), cs_fst(csa_term2())), n);
+    assert(eval_comp(valid_cs, n) == 1nat);
     lemma_eval_pair(valid_cs, cs_snd(csa_term2()), n);
     lemma_eval_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2())), n);
-    assert(1nat * (v1 * v2) != 0) by (nonlinear_arith) requires v1 != 0, v2 != 0;
 
-    let at_result = eval_comp(cs_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2()))), n);
-    lemma_unpair1_pair(rest, eval_comp(cs_pair(valid_cs, cs_snd(csa_term2())), n));
-    lemma_unpair2_pair(rest, eval_comp(cs_pair(valid_cs, cs_snd(csa_term2())), n));
-    lemma_unpair1_pair(1nat * (v1 * v2), eval_comp(cs_snd(csa_term2()), n));
-    assert(eval_comp(check_subst_atomic_terms(), n) == at_result);
+    let state = eval_comp(cs_snd(csa_term2()), n);
+    assert(eval_comp(cs_pair(csa_rest(), cs_pair(valid_cs, cs_snd(csa_term2()))), n)
+        == pair(rest, pair(1nat, state)));
+    assert(eval_comp(check_subst_atomic_terms(), n) == pair(rest, pair(1nat, state)));
 }
 
 } // verus!
