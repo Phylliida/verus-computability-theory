@@ -173,6 +173,18 @@ pub mod compspec_subst_forward_atomic;
 pub mod compspec_subst_forward;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_helpers;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_compound_tag;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_binary_tag;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_quant_tag;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction2;
 
 #[cfg(verus_keep_ghost)]
