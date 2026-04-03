@@ -161,7 +161,13 @@ pub mod compspec_subst_forward_eq_valid;
 pub mod compspec_subst_forward_in;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_tag;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_eq;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward;
 
 #[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction2;
