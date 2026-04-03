@@ -146,6 +146,18 @@ pub mod compspec_subst_step_compose;
 pub mod compspec_subst_atomic_exact;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_extract;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_term_eval;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_v1;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_v2;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_eq;
 
 #[cfg(verus_keep_ghost)]
