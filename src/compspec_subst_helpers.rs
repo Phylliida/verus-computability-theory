@@ -6,6 +6,7 @@ use crate::compspec_halts::*;
 use crate::compspec_decode::*;
 use crate::compspec_free_var_helpers::*;
 use crate::compspec_subst_induction::*;
+use crate::compspec_subst_induction2::{subst_state, lemma_subst_traversal2};
 
 verus! {
 
@@ -194,18 +195,17 @@ pub proof fn lemma_check_subst_comp_backward(phi: Formula, var: nat, t: Term)
         //  Fuel adequacy: phi_enc >= subst_traversal_cost(phi, var)
         lemma_encode_ge_subst_cost(phi, var);
 
-        //  Traversal: processes all nodes, leaves stack at 0, valid at 1
-        lemma_subst_traversal(phi, var, t, 0nat, 0nat, 0nat, phi_enc, result_enc, phi_enc);
+        //  Traversal with exact state tracking
+        lemma_subst_traversal2(phi, var, t, 0nat, 0nat, 0nat, phi_enc, result_enc, phi_enc);
+        let (te2, ts2) = subst_state(phi, var, encode_term(t), 0nat, 0nat);
 
-        //  After traversal: iterate result = iterate(phi_enc - cost, pair(0, pair(1, pair(0,0))), input)
         //  Empty-stack stability: remaining iterations preserve acc
         let remaining = (phi_enc - subst_traversal_cost(phi, var)) as nat;
-        lemma_subst_empty_stable(remaining, 1nat, 0nat, 0nat, phi_enc, result_enc, var);
+        lemma_subst_empty_stable(remaining, 1nat, te2, ts2, phi_enc, result_enc, var);
 
         //  Extract valid = 1
-        let final_acc = pair(0nat, pair(1nat, pair(0nat, 0nat)));
-        lemma_unpair2_pair(0nat, pair(1nat, pair(0nat, 0nat)));
-        lemma_unpair1_pair(1nat, pair(0nat, 0nat));
+        lemma_unpair2_pair(0nat, pair(1nat, pair(te2, ts2)));
+        lemma_unpair1_pair(1nat, pair(te2, ts2));
     }
 }
 
