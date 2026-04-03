@@ -673,14 +673,15 @@ pub open spec fn check_subst_comp() -> CompSpec {
     let result = cs_fst(cs_snd(CompSpec::Id));
     let var = cs_snd(cs_snd(CompSpec::Id));
 
-    //  BoundedRec: count = phi_enc (generous fuel)
+    //  BoundedRec: count = phi_enc + 1 (ensures at least 1 step even for encode=0)
     //  base: pair(stack=[pair(phi,result)+1, 0], pair(1, pair(0, 0)))
     //    stack has one entry, valid=1, t_enc=0 (unset), t_set=0
     //  After loop: valid flag
+    let phi_plus_1 = CompSpec::Add { left: Box::new(phi), right: Box::new(cs_const(1)) };
     cs_comp(
         cs_fst(cs_snd(CompSpec::Id)),  //  extract valid from pair(stack, pair(valid, ...))
         CompSpec::BoundedRec {
-            count_fn: Box::new(phi),
+            count_fn: Box::new(phi_plus_1),
             base: Box::new(cs_pair(
                 //  stack: single element = pair(phi, result) encoded in sequence
                 cs_pair(

@@ -11,56 +11,6 @@ use crate::compspec_subst_induction2::{subst_state, lemma_subst_traversal2};
 verus! {
 
 ///  When phi_enc == 0: check_subst_comp returns 1 (0 iterations, base valid=1).
-pub proof fn lemma_check_subst_comp_zero_fuel(result_enc: nat, var: nat)
-    ensures
-        eval_comp(check_subst_comp(), pair(0nat, pair(result_enc, var))) != 0,
-{
-    let input = pair(0nat, pair(result_enc, var));
-    let phi = cs_fst(CompSpec::Id);
-    let result = cs_fst(cs_snd(CompSpec::Id));
-
-    lemma_eval_fst(CompSpec::Id, input);
-    lemma_unpair1_pair(0nat, pair(result_enc, var));
-    lemma_eval_snd(CompSpec::Id, input);
-    lemma_unpair2_pair(0nat, pair(result_enc, var));
-    lemma_eval_fst(cs_snd(CompSpec::Id), input);
-    lemma_unpair1_pair(result_enc, var);
-    lemma_eval_snd(cs_snd(CompSpec::Id), input);
-    lemma_unpair2_pair(result_enc, var);
-
-    lemma_eval_pair(phi, result, input);
-    lemma_eval_add(cs_pair(phi, result), cs_const(1), input);
-    lemma_eval_pair(
-        CompSpec::Add { left: Box::new(cs_pair(phi, result)), right: Box::new(cs_const(1)) },
-        cs_const(0), input);
-    lemma_eval_pair(cs_const(0), cs_const(0), input);
-    lemma_eval_pair(cs_const(1), cs_pair(cs_const(0), cs_const(0)), input);
-    let stack_expr = cs_pair(
-        CompSpec::Add { left: Box::new(cs_pair(phi, result)), right: Box::new(cs_const(1)) },
-        cs_const(0));
-    let valid_expr = cs_pair(cs_const(1), cs_pair(cs_const(0), cs_const(0)));
-    lemma_eval_pair(stack_expr, valid_expr, input);
-    let base_expr = cs_pair(stack_expr, valid_expr);
-
-    lemma_eval_bounded_rec(phi, base_expr, check_subst_step(), input);
-
-    let base_val = eval_comp(base_expr, input);
-    let stack_val = eval_comp(stack_expr, input);
-    let valid_part = pair(1nat, pair(0nat, 0nat));
-
-    lemma_eval_comp(cs_fst(cs_snd(CompSpec::Id)),
-        CompSpec::BoundedRec {
-            count_fn: Box::new(phi),
-            base: Box::new(base_expr),
-            step: Box::new(check_subst_step()),
-        }, input);
-
-    lemma_eval_snd(CompSpec::Id, base_val);
-    lemma_unpair2_pair(stack_val, valid_part);
-    lemma_eval_fst(cs_snd(CompSpec::Id), base_val);
-    lemma_unpair1_pair(1nat, pair(0nat, 0nat));
-}
-
 ///  When valid > 0 and stack is empty, step returns acc unchanged.
 pub proof fn lemma_subst_step_empty(
     i: nat, valid: nat, t_enc: nat, t_set: nat,
@@ -127,13 +77,14 @@ pub proof fn lemma_subst_empty_stable(
 }
 
 ///  Unfold check_subst_comp to compspec_iterate.
+///  Fuel is phi_enc + 1 (ensures at least 1 step even for encode=0).
 proof fn lemma_check_subst_unfold(phi_enc: nat, result_enc: nat, var: nat)
     ensures ({
         let input = pair(phi_enc, pair(result_enc, var));
         let entry = pair(phi_enc, result_enc);
         let base_val = pair(pair(entry + 1, 0nat), pair(1nat, pair(0nat, 0nat)));
         eval_comp(check_subst_comp(), input)
-            == unpair1(unpair2(compspec_iterate(check_subst_step(), phi_enc, base_val, input)))
+            == unpair1(unpair2(compspec_iterate(check_subst_step(), (phi_enc + 1) as nat, base_val, input)))
     }),
 {
     let input = pair(phi_enc, pair(result_enc, var));
@@ -161,13 +112,17 @@ proof fn lemma_check_subst_unfold(phi_enc: nat, result_enc: nat, var: nat)
     lemma_eval_pair(stack_expr, valid_expr, input);
     let base_expr = cs_pair(stack_expr, valid_expr);
 
-    lemma_eval_bounded_rec(phi_cs, base_expr, check_subst_step(), input);
+    //  Fuel = phi_enc + 1
+    let phi_plus_1_cs = CompSpec::Add { left: Box::new(phi_cs), right: Box::new(cs_const(1)) };
+    lemma_eval_add(phi_cs, cs_const(1), input);
 
-    let br_result = compspec_iterate(check_subst_step(), phi_enc,
+    lemma_eval_bounded_rec(phi_plus_1_cs, base_expr, check_subst_step(), input);
+
+    let br_result = compspec_iterate(check_subst_step(), (phi_enc + 1) as nat,
         eval_comp(base_expr, input), input);
     lemma_eval_comp(cs_fst(cs_snd(CompSpec::Id)),
         CompSpec::BoundedRec {
-            count_fn: Box::new(phi_cs),
+            count_fn: Box::new(phi_plus_1_cs),
             base: Box::new(base_expr),
             step: Box::new(check_subst_step()),
         }, input);
@@ -183,30 +138,33 @@ pub proof fn lemma_check_subst_comp_backward(phi: Formula, var: nat, t: Term)
 {
     let phi_enc = encode(phi);
     let result_enc = encode(subst(phi, var, t));
-    if phi_enc == 0 {
-        lemma_check_subst_comp_zero_fuel(result_enc, var);
-    } else {
-        //  Unfold to compspec_iterate
-        lemma_check_subst_unfold(phi_enc, result_enc, var);
-        let input = pair(phi_enc, pair(result_enc, var));
-        let entry = pair(phi_enc, result_enc);
-        let base_val = pair(pair(entry + 1, 0nat), pair(1nat, pair(0nat, 0nat)));
 
-        //  Fuel adequacy: phi_enc >= subst_traversal_cost(phi, var)
+    //  Unfold to compspec_iterate with fuel = phi_enc + 1
+    lemma_check_subst_unfold(phi_enc, result_enc, var);
+    let input = pair(phi_enc, pair(result_enc, var));
+    let entry = pair(phi_enc, result_enc);
+    let base_val = pair(pair(entry + 1, 0nat), pair(1nat, pair(0nat, 0nat)));
+
+    //  Fuel adequacy: phi_enc + 1 >= subst_traversal_cost(phi, var)
+    //  (cost >= 1 always, and phi_enc >= cost when phi_enc > 0; phi_enc + 1 >= 1 >= cost when phi_enc == 0)
+    lemma_subst_traversal_cost_pos(phi, var);
+    if phi_enc > 0 {
         lemma_encode_ge_subst_cost(phi, var);
-
-        //  Traversal with exact state tracking
-        lemma_subst_traversal2(phi, var, t, 0nat, 0nat, 0nat, phi_enc, result_enc, phi_enc);
-        let (te2, ts2) = subst_state(phi, var, encode_term(t), 0nat, 0nat);
-
-        //  Empty-stack stability: remaining iterations preserve acc
-        let remaining = (phi_enc - subst_traversal_cost(phi, var)) as nat;
-        lemma_subst_empty_stable(remaining, 1nat, te2, ts2, phi_enc, result_enc, var);
-
-        //  Extract valid = 1
-        lemma_unpair2_pair(0nat, pair(1nat, pair(te2, ts2)));
-        lemma_unpair1_pair(1nat, pair(te2, ts2));
+    } else {
+        //  phi_enc == 0: Eq(Var(0),Var(0)) has cost 1, phi_enc + 1 = 1 >= 1 ✓
     }
+
+    //  Traversal with exact state tracking (fuel = phi_enc + 1)
+    lemma_subst_traversal2(phi, var, t, 0nat, 0nat, 0nat, phi_enc, result_enc, (phi_enc + 1) as nat);
+    let (te2, ts2) = subst_state(phi, var, encode_term(t), 0nat, 0nat);
+
+    //  Empty-stack stability: remaining iterations preserve acc
+    let remaining = ((phi_enc + 1) - subst_traversal_cost(phi, var)) as nat;
+    lemma_subst_empty_stable(remaining, 1nat, te2, ts2, phi_enc, result_enc, var);
+
+    //  Extract valid = 1
+    lemma_unpair2_pair(0nat, pair(1nat, pair(te2, ts2)));
+    lemma_unpair1_pair(1nat, pair(te2, ts2));
 }
 
 } //  verus!
