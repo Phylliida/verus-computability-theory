@@ -584,7 +584,7 @@ pub proof fn lemma_subst_process_pair_unary(
 }
 
 ///  Dispatch: for tags >= 3, process_pair routes to check_subst_compound.
-proof fn lemma_subst_dispatch_compound(
+pub proof fn lemma_subst_dispatch_compound(
     i: nat, phi_node: nat, result_node: nat, rest: nat,
     valid: nat, t_enc: nat, t_set: nat,
     phi_enc: nat, result_enc: nat, var: nat,
