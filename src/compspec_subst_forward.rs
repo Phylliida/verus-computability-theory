@@ -6,6 +6,7 @@ use crate::compspec_halts::*;
 use crate::compspec_subst_helpers::*;
 use crate::compspec_subst_forward_eq::lemma_forward_eq_constraints;
 use crate::compspec_subst_forward_in::lemma_forward_in_constraints;
+use crate::compspec_subst_forward_tag::*;
 
 verus! {
 
@@ -125,11 +126,10 @@ proof fn lemma_forward_atomic(
 
     //  Get constraints from the checker
     if tag == 0 {
+        //  Tag match: result must have tag 0 (Eq)
         lemma_unpair1_pair(0nat, pair(a, b));
-        //  For Eq: need result_enc == pair(0, pair(ra, rb))
-        //  Tag match: result_tag == 0
-        //  TODO: derive result_tag == 0 from checker acceptance
-        //  For now, match on result to get the Eq structure
+        lemma_forward_eq_tag_match(phi_enc, result_enc, var);
+        //  Now: unpair1(result_enc) == 0 → result is Eq
         match result {
             Formula::Eq { left: rl, right: rr } => {
                 match rl { Term::Var { index: ra2 } => {
@@ -139,31 +139,30 @@ proof fn lemma_forward_atomic(
                     lemma_unpair1_pair(ra2, rb2);
                     lemma_unpair2_pair(ra2, rb2);
                     lemma_forward_eq_constraints(a, b, ra2, rb2, var, phi_enc, result_enc);
-                    //  Constraints: (a!=var → ra2==a), (b!=var → rb2==b), (both var → rb2==ra2)
                     let te = if a == var { ra2 } else { if b == var { rb2 } else { 0nat } };
                     let t = Term::Var { index: te };
-                    //  Verify: result == subst(phi, var, t)
                     assert(result == subst(phi, var, t));
                     t
                 }}
                 }}
             },
+            //  Tag match ensures result is Eq — other variants have tag != 0
             _ => {
-                //  Tag mismatch: result is not Eq but phi is Eq
-                //  The checker's tag check would reject this (TODO: formal contradiction)
-                //  For now, backward proof serves as placeholder
+                //  result has tag 0 but is not Eq — impossible for valid Formula
+                //  In (tag 1), Not (tag 2), etc. all have tag >= 1
+                lemma_encode_is_pair(result);
                 let t = Term::Var { index: 0 };
-                lemma_check_subst_comp_backward(phi, var, t);
-                t  //  PLACEHOLDER: tag mismatch contradiction needed
+                t  //  unreachable: decode with tag 0 always gives Eq
             }
         }
     } else {
-        //  tag == 1 (In)
+        //  Tag match: result must have tag 1 (In)
+        lemma_unpair1_pair(1nat, pair(a, b));
+        lemma_forward_in_tag_match(phi_enc, result_enc, var);
         match result {
             Formula::In { left: rl, right: rr } => {
                 match rl { Term::Var { index: ra2 } => {
                 match rr { Term::Var { index: rb2 } => {
-                    lemma_unpair1_pair(1nat, pair(a, b));
                     lemma_unpair1_pair(1nat, pair(ra2, rb2));
                     lemma_unpair2_pair(1nat, pair(ra2, rb2));
                     lemma_unpair1_pair(ra2, rb2);
@@ -177,9 +176,9 @@ proof fn lemma_forward_atomic(
                 }}
             },
             _ => {
+                lemma_encode_is_pair(result);
                 let t = Term::Var { index: 0 };
-                lemma_check_subst_comp_backward(phi, var, t);
-                t  //  PLACEHOLDER: tag mismatch contradiction needed
+                t  //  unreachable: decode with tag 1 always gives In
             }
         }
     }
