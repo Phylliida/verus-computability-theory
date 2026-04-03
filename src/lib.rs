@@ -167,6 +167,9 @@ pub mod compspec_subst_forward_tag;
 pub mod compspec_subst_forward_eq;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_atomic;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward;
 
 #[cfg(verus_keep_ghost)]
