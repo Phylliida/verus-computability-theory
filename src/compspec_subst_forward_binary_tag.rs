@@ -2,7 +2,7 @@ use vstd::prelude::*;
 use crate::pairing::*;
 use crate::computable::*;
 use crate::compspec_halts::*;
-use crate::compspec_subst_step_helpers::*;
+use crate::compspec_subst_step_helpers::{lemma_subst_step_dispatch, lemma_subst_dispatch_compound};
 use crate::compspec_subst_helpers::*;
 use crate::compspec_subst_forward_extract::extract_general;
 use crate::compspec_subst_forward_helpers::lemma_subst_valid_zero_stable;
