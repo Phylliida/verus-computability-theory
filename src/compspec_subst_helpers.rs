@@ -52,6 +52,62 @@ pub proof fn lemma_subst_step_empty(
         }, input);
 }
 
+///  When valid == 0, step returns acc unchanged (first IfZero catches it).
+pub proof fn lemma_subst_step_valid_zero(
+    i: nat, stack: nat, t_enc: nat, t_set: nat,
+    phi_enc: nat, result_enc: nat, var: nat,
+)
+    ensures ({
+        let acc = pair(stack, pair(0nat, pair(t_enc, t_set)));
+        let input = pair(i, pair(acc, pair(phi_enc, pair(result_enc, var))));
+        eval_comp(check_subst_step(), input) == acc
+    }),
+{
+    let acc = pair(stack, pair(0nat, pair(t_enc, t_set)));
+    let orig = pair(phi_enc, pair(result_enc, var));
+    let input = pair(i, pair(acc, orig));
+    lemma_eval_br_acc(i, acc, orig);
+    let valid_cs = cs_fst(cs_snd(br_acc()));
+    lemma_eval_snd(br_acc(), input);
+    lemma_unpair2_pair(stack, pair(0nat, pair(t_enc, t_set)));
+    lemma_eval_fst(cs_snd(br_acc()), input);
+    lemma_unpair1_pair(0nat, pair(t_enc, t_set));
+    lemma_eval_ifzero_then(valid_cs, br_acc(),
+        CompSpec::IfZero {
+            cond: Box::new(cs_fst(cs_fst(br_acc()))),
+            then_br: Box::new(br_acc()),
+            else_br: Box::new(check_subst_process_pair()),
+        }, input);
+}
+
+///  General empty-stack stability: works for ANY valid (including 0).
+pub proof fn lemma_subst_empty_stable_general(
+    fuel: nat, valid: nat, t_enc: nat, t_set: nat,
+    phi_enc: nat, result_enc: nat, var: nat,
+)
+    ensures ({
+        let acc = pair(0nat, pair(valid, pair(t_enc, t_set)));
+        let orig = pair(phi_enc, pair(result_enc, var));
+        compspec_iterate(check_subst_step(), fuel, acc, orig) == acc
+    }),
+    decreases fuel,
+{
+    let acc = pair(0nat, pair(valid, pair(t_enc, t_set)));
+    let orig = pair(phi_enc, pair(result_enc, var));
+    if fuel > 0 {
+        if valid > 0 {
+            lemma_subst_step_empty((fuel - 1) as nat, valid, t_enc, t_set,
+                phi_enc, result_enc, var);
+        } else {
+            lemma_subst_step_valid_zero((fuel - 1) as nat, 0nat, t_enc, t_set,
+                phi_enc, result_enc, var);
+        }
+        lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc, orig);
+        lemma_subst_empty_stable_general((fuel - 1) as nat, valid, t_enc, t_set,
+            phi_enc, result_enc, var);
+    }
+}
+
 ///  compspec_iterate stays stable with empty stack and valid > 0.
 pub proof fn lemma_subst_empty_stable(
     fuel: nat, valid: nat, t_enc: nat, t_set: nat,
