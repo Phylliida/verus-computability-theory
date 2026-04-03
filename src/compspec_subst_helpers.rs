@@ -78,7 +78,7 @@ pub proof fn lemma_subst_empty_stable(
 
 ///  Unfold check_subst_comp to compspec_iterate.
 ///  Fuel is phi_enc + 1 (ensures at least 1 step even for encode=0).
-proof fn lemma_check_subst_unfold(phi_enc: nat, result_enc: nat, var: nat)
+pub proof fn lemma_check_subst_unfold(phi_enc: nat, result_enc: nat, var: nat)
     ensures ({
         let input = pair(phi_enc, pair(result_enc, var));
         let entry = pair(phi_enc, result_enc);
