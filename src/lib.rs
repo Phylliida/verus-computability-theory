@@ -152,12 +152,6 @@ pub mod compspec_subst_forward_extract;
 pub mod compspec_subst_forward_term_eval;
 
 #[cfg(verus_keep_ghost)]
-pub mod compspec_subst_forward_v1;
-
-#[cfg(verus_keep_ghost)]
-pub mod compspec_subst_forward_v2;
-
-#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_eq_terms;
 
 #[cfg(verus_keep_ghost)]
