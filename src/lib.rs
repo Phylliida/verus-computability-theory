@@ -179,6 +179,12 @@ pub mod compspec_subst_forward_helpers;
 pub mod compspec_subst_forward_compound_tag;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_step_not;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_step_binary;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_binary_tag;
 
 #[cfg(verus_keep_ghost)]
