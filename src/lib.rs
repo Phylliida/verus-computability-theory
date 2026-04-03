@@ -143,6 +143,9 @@ pub mod compspec_subst_step_helpers2;
 pub mod compspec_subst_step_compose;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_atomic_exact;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_induction2;
 
 #[cfg(verus_keep_ghost)]

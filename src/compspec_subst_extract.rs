@@ -10,7 +10,7 @@ verus! {
 
 ///  Extract sub-expression eval values for atomic Eq step input.
 pub proof fn extract_atomic_eq_values(
-    left: Term, right: Term, var: nat, t: Term,
+    i: nat, left: Term, right: Term, var: nat, t: Term,
     rest: nat, valid: nat, t_enc_val: nat, t_set_val: nat,
     phi_enc: nat, result_enc: nat,
 )
@@ -19,7 +19,7 @@ pub proof fn extract_atomic_eq_values(
         let entry = pair(encode(f), encode(subst(f, var, t)));
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
-        let n = pair(0nat, pair(acc, s));
+        let n = pair(i, pair(acc, s));
         let entry_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
         let pn = cs_fst(entry_cs);
         let rn = cs_snd(entry_cs);
@@ -42,14 +42,14 @@ pub proof fn extract_atomic_eq_values(
     let entry = pair(encode(f), encode(subst(f, var, t)));
     let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     let s = pair(phi_enc, pair(result_enc, var));
-    let n = pair(0nat, pair(acc, s));
+    let n = pair(i, pair(acc, s));
 
     lemma_encode_is_pair(f);
     lemma_encode_is_pair(subst(f, var, t));
     lemma_unpair1_pair(0nat, pair(encode_term(left), encode_term(right)));
     lemma_unpair1_pair(0nat, pair(encode_term(subst_term(left, var, t)), encode_term(subst_term(right, var, t))));
 
-    lemma_eval_br_acc(0nat, acc, s);
+    lemma_eval_br_acc(i, acc, s);
     lemma_eval_fst(br_acc(), n);
     lemma_unpair1_pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     lemma_eval_fst(cs_fst(br_acc()), n);
@@ -83,7 +83,7 @@ pub proof fn extract_atomic_eq_values(
     lemma_unpair2_pair(encode_term(subst_term(left, var, t)), encode_term(subst_term(right, var, t)));
 
     lemma_eval_snd(CompSpec::Id, n);
-    lemma_unpair2_pair(0nat, pair(acc, s));
+    lemma_unpair2_pair(i, pair(acc, s));
     lemma_eval_snd(cs_snd(CompSpec::Id), n);
     lemma_unpair2_pair(acc, s);
     lemma_eval_snd(cs_snd(cs_snd(CompSpec::Id)), n);
@@ -103,7 +103,7 @@ pub proof fn extract_atomic_eq_values(
 
 ///  Same as Eq but for In (tag 1).
 pub proof fn extract_atomic_in_values(
-    left: Term, right: Term, var: nat, t: Term,
+    i: nat, left: Term, right: Term, var: nat, t: Term,
     rest: nat, valid: nat, t_enc_val: nat, t_set_val: nat,
     phi_enc: nat, result_enc: nat,
 )
@@ -112,7 +112,7 @@ pub proof fn extract_atomic_in_values(
         let entry = pair(encode(f), encode(subst(f, var, t)));
         let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
         let s = pair(phi_enc, pair(result_enc, var));
-        let n = pair(0nat, pair(acc, s));
+        let n = pair(i, pair(acc, s));
         let entry_cs = cs_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())));
         let pn = cs_fst(entry_cs);
         let rn = cs_snd(entry_cs);
@@ -132,14 +132,14 @@ pub proof fn extract_atomic_in_values(
     let entry = pair(encode(f), encode(subst(f, var, t)));
     let acc = pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     let s = pair(phi_enc, pair(result_enc, var));
-    let n = pair(0nat, pair(acc, s));
+    let n = pair(i, pair(acc, s));
 
     lemma_encode_is_pair(f);
     lemma_encode_is_pair(subst(f, var, t));
     lemma_unpair1_pair(1nat, pair(encode_term(left), encode_term(right)));
     lemma_unpair1_pair(1nat, pair(encode_term(subst_term(left, var, t)), encode_term(subst_term(right, var, t))));
 
-    lemma_eval_br_acc(0nat, acc, s);
+    lemma_eval_br_acc(i, acc, s);
     lemma_eval_fst(br_acc(), n);
     lemma_unpair1_pair(pair(entry + 1, rest), pair(valid, pair(t_enc_val, t_set_val)));
     lemma_eval_fst(cs_fst(br_acc()), n);
@@ -173,7 +173,7 @@ pub proof fn extract_atomic_in_values(
     lemma_unpair2_pair(encode_term(subst_term(left, var, t)), encode_term(subst_term(right, var, t)));
 
     lemma_eval_snd(CompSpec::Id, n);
-    lemma_unpair2_pair(0nat, pair(acc, s));
+    lemma_unpair2_pair(i, pair(acc, s));
     lemma_eval_snd(cs_snd(CompSpec::Id), n);
     lemma_unpair2_pair(acc, s);
     lemma_eval_snd(cs_snd(cs_snd(CompSpec::Id)), n);

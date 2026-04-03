@@ -4,7 +4,7 @@ use crate::computable::*;
 use crate::formula::*;
 use crate::compspec_halts::*;
 use crate::compspec_subst_induction_steps::*;
-use crate::compspec_subst_step_compose::*;
+use crate::compspec_subst_atomic_exact::*;
 
 verus! {
 
@@ -99,36 +99,10 @@ pub proof fn lemma_subst_traversal2(
 
     match f {
         Formula::Eq { left, right } => {
-            //  Use old step_eq — its ensures (preserved te/ts) is wrong for strengthened
-            //  check, but the iterate unfold + chain is still correct for the COMPOUND
-            //  structure. The key: subst_state for Eq with simplified terms gives
-            //  the same (te, ts) when terms don't change state.
-            //  Actually for Eq, step_eq's ensures IS wrong. Skip to step_in.
-            //  TODO: Need per-arm helper for Eq that gives correct state.
-            //  For now, use the fact that the ensures references subst_state
-            //  which for Eq might still match (te, ts) in some cases.
-            assert(compspec_iterate(check_subst_step(), fuel,
-                pair(pair(pair(encode(f), encode(subst(f,var,t)))+1, rest), pair(1nat, pair(te,ts))),
-                pair(pe, pair(re, var)))
-            == compspec_iterate(check_subst_step(), (fuel - subst_traversal_cost(f, var)) as nat,
-                pair(rest, pair(1nat, pair(subst_state(f, var, encode_term(t), te, ts).0,
-                                           subst_state(f, var, encode_term(t), te, ts).1))),
-                pair(pe, pair(re, var)))) by {
-                reveal(compspec_iterate);
-                step_eq(f, left, right, var, t, rest, te, ts, pe, re, fuel);
-            }
+            step_eq_exact(f, left, right, var, t, rest, te, ts, pe, re, fuel);
         },
         Formula::In { left, right } => {
-            assert(compspec_iterate(check_subst_step(), fuel,
-                pair(pair(pair(encode(f), encode(subst(f,var,t)))+1, rest), pair(1nat, pair(te,ts))),
-                pair(pe, pair(re, var)))
-            == compspec_iterate(check_subst_step(), (fuel - subst_traversal_cost(f, var)) as nat,
-                pair(rest, pair(1nat, pair(subst_state(f, var, encode_term(t), te, ts).0,
-                                           subst_state(f, var, encode_term(t), te, ts).1))),
-                pair(pe, pair(re, var)))) by {
-                reveal(compspec_iterate);
-                step_in(f, left, right, var, t, rest, te, ts, pe, re, fuel);
-            }
+            step_in_exact(f, left, right, var, t, rest, te, ts, pe, re, fuel);
         },
         Formula::Not { sub } => {
             step_not(f, *sub, var, t, rest, te, ts, pe, re, fuel);

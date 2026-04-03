@@ -40,8 +40,8 @@ pub proof fn lemma_subst_one_term_valid(
         t_set_val == 0 || t_enc_val == t_val,
     ensures ({
         let term_check = check_subst_one_term(phi_term_cs, result_term_cs, var_cs, t_enc_cs, t_set_cs);
-        //  v nonzero
-        eval_comp(cs_fst(term_check), input) != 0 &&
+        //  v exactly 1 (for valid substitutions, all checks produce 1)
+        eval_comp(cs_fst(term_check), input) == 1 &&
         //  t_enc invariant maintained
         (eval_comp(cs_snd(cs_snd(term_check)), input) == 0 ||
          eval_comp(cs_fst(cs_snd(term_check)), input) == t_val) &&
