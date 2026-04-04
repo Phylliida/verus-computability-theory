@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::pairing::*;
 use crate::computable::*;
 use crate::compspec_halts::*;
+use crate::compspec_decode::*;
 use crate::compspec_subst_step_helpers::lemma_subst_step_dispatch;
 use crate::compspec_subst_helpers::*;
 
