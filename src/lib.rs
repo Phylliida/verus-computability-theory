@@ -191,6 +191,15 @@ pub mod compspec_subst_forward_eq_iter_terms;
 pub mod compspec_subst_forward_eq_iter_valid;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_in_iter_valid;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_walk_atomic;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_walk_atomic_in;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_binary_tag;
 
 #[cfg(verus_keep_ghost)]
