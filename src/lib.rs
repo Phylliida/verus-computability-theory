@@ -191,6 +191,9 @@ pub mod compspec_subst_forward_eq_iter_terms;
 pub mod compspec_subst_forward_eq_iter_valid;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_eq_iter_tag;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_in_iter_valid;
 
 #[cfg(verus_keep_ghost)]
