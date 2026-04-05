@@ -203,6 +203,12 @@ pub mod compspec_subst_forward_walk_atomic;
 pub mod compspec_subst_forward_walk_atomic_in;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_step_quant;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_walk_iter;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_binary_tag;
 
 #[cfg(verus_keep_ghost)]
