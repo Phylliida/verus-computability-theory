@@ -80,8 +80,12 @@ pub proof fn lemma_subst_state_unchanged(f: Formula, var: nat, t_enc: nat, te: n
 
 ///  If subst_state starting from (te, 0) returns ts_out == 0, then subst(f, var, t) == f.
 ///  (No term position in f's traversal matched var, so substitution is the identity.)
+///  Works with any initial te value (te only matters when ts becomes 1, which doesn't happen here).
 pub proof fn lemma_subst_state_zero_identity(f: Formula, var: nat, t_enc: nat, t: Term)
-    requires subst_state(f, var, t_enc, 0nat, 0nat).1 == 0nat,
+    requires
+        //  Accept any initial te via the unchanged lemma: if output ts == 0, input ts was 0
+        //  and no term matched var. The subst computation is independent of te.
+        subst_state(f, var, t_enc, 0nat, 0nat).1 == 0nat,
     ensures subst(f, var, t) == f,
     decreases f,
 {
@@ -166,6 +170,53 @@ pub proof fn lemma_subst_state_zero_identity(f: Formula, var: nat, t_enc: nat, t
                 //  subst(Exists(v, sub), var, t) = f when v == var
             } else {
                 lemma_subst_state_zero_identity(*sub, var, t_enc, t);
+            }
+        },
+    }
+}
+
+///  Generalized identity: if subst_state from (te_init, 0) returns ts == 0, then subst is identity.
+///  Bridge from general te_init to the (0, 0) version via the unchanged lemma.
+pub proof fn lemma_subst_state_zero_identity_gen(f: Formula, var: nat, t_enc: nat, te_init: nat, t: Term)
+    requires subst_state(f, var, t_enc, te_init, 0nat).1 == 0nat,
+    ensures subst(f, var, t) == f,
+    decreases f,
+{
+    //  By unchanged: subst_state(f, var, t_enc, te_init, 0) == (te_init, 0)
+    lemma_subst_state_unchanged(f, var, t_enc, te_init);
+    //  Also: subst_state(f, var, t_enc, 0, 0) == (0, 0) (since same ts evolution)
+    //  Bridge: show subst_state(f, var, t_enc, 0, 0).1 == 0
+    //  The ts component of subst_state depends only on whether terms match var (not on te).
+    //  Since no term matched var (from te_init case), the 0 case also has ts == 0.
+    lemma_subst_state_ts_independent(f, var, t_enc, te_init, 0nat, 0nat);
+    //  Now subst_state(f, var, t_enc, 0, 0).1 == 0, apply the original identity.
+    lemma_subst_state_zero_identity(f, var, t_enc, t);
+}
+
+///  The ts component of subst_state is independent of te for ANY ts_in.
+///  Proof: subst_term_state's ts transition depends only on term.index vs var and ts_in, not te.
+proof fn lemma_subst_state_ts_independent(f: Formula, var: nat, t_enc: nat, te1: nat, te2: nat, ts_in: nat)
+    ensures
+        subst_state(f, var, t_enc, te1, ts_in).1 == subst_state(f, var, t_enc, te2, ts_in).1,
+    decreases f,
+{
+    match f {
+        Formula::Eq { left, right } => {},
+        Formula::In { left, right } => {},
+        Formula::Not { sub } => {
+            lemma_subst_state_ts_independent(*sub, var, t_enc, te1, te2, ts_in);
+        },
+        Formula::And { left, right } | Formula::Or { left, right }
+        | Formula::Implies { left, right } | Formula::Iff { left, right } => {
+            lemma_subst_state_ts_independent(*left, var, t_enc, te1, te2, ts_in);
+            let te_out_a = subst_state(*left, var, t_enc, te1, ts_in).0;
+            let te_out_b = subst_state(*left, var, t_enc, te2, ts_in).0;
+            let ts_mid = subst_state(*left, var, t_enc, te1, ts_in).1;
+            lemma_subst_state_ts_independent(*right, var, t_enc, te_out_a, te_out_b, ts_mid);
+        },
+        Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
+            if v != var {
+                lemma_subst_state_ts_independent(*sub, var, t_enc, te1, te2, ts_in);
             }
         },
     }
