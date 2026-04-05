@@ -185,7 +185,7 @@ pub mod compspec_subst_forward_step_not;
 pub mod compspec_subst_forward_step_binary;
 
 #[cfg(verus_keep_ghost)]
-pub mod compspec_subst_forward_eq_iter;
+pub mod compspec_subst_forward_eq_iter_terms;
 
 #[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_binary_tag;
