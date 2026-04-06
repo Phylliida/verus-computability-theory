@@ -8,6 +8,25 @@ use crate::compspec_subst_induction2::*;
 
 verus! {
 
+///  Contradiction: if iterate starts with valid=0, final valid is 0.
+///  Combines valid_zero_stable + unpair extraction. Use in tag contradiction branches.
+pub proof fn lemma_iterate_valid_zero_contradiction(
+    fuel: nat, stack: nat, te: nat, ts: nat,
+    pe: nat, re: nat, var: nat,
+)
+    requires
+        unpair1(unpair2(
+            compspec_iterate(check_subst_step(), fuel,
+                pair(stack, pair(0nat, pair(te, ts))),
+                pair(pe, pair(re, var)))
+        )) != 0,
+    ensures false,
+{
+    lemma_subst_valid_zero_stable(fuel, stack, te, ts, pe, re, var);
+    lemma_unpair2_pair(stack, pair(0nat, pair(te, ts)));
+    lemma_unpair1_pair(0nat, pair(te, ts));
+}
+
 ///  When valid == 0, the iterate preserves acc unchanged for ANY stack (not just empty).
 ///  Generalizes lemma_subst_empty_stable_general which only handles stack == 0.
 pub proof fn lemma_subst_valid_zero_stable(
