@@ -3,13 +3,15 @@ use crate::pairing::*;
 use crate::computable::*;
 use crate::formula::*;
 use crate::compspec_halts::check_subst_step;
+use crate::compspec_subst_induction2::{subst_state, lemma_subst_state_invariant, lemma_subst_traversal2};
 use crate::compspec_subst_forward_helpers::lemma_iterate_valid_zero_contradiction;
 use crate::compspec_subst_forward_walk_iter::lemma_forward_walk_iterate;
-use crate::compspec_subst_forward_walk_binary_right::lemma_forward_binary_right_and_combine;
+use crate::compspec_subst_forward_binary_combine::lemma_binary_combine;
 
 verus! {
 
-///  Binary walk: matches on phi to get structural sub-terms for termination.
+///  Binary walk: tag + left IH + backward decomp + right IH + combine.
+///  2-way recursion only: walk_iter ↔ this. No separate binary_right.
 #[verifier::rlimit(5000)]
 pub proof fn lemma_forward_walk_binary(
     phi: Formula,
@@ -38,7 +40,6 @@ pub proof fn lemma_forward_walk_binary(
         ts != 0nat ==> encode_term(t) == te,
     decreases phi, 0nat,
 {
-    //  Match to get structural sub-terms for termination checker
     match phi {
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
@@ -46,10 +47,9 @@ pub proof fn lemma_forward_walk_binary(
             if unpair1(result_enc) != tag {
                 lemma_pair_surjective(result_enc);
                 lemma_pair_surjective(unpair2(result_enc));
-                let rl = unpair1(unpair2(result_enc));
-                let rr = unpair2(unpair2(result_enc));
                 lemma_iterate_valid_zero_contradiction(fuel,
-                    pair(pair(el,rl)+1, pair(pair(er,rr)+1, rest)),
+                    pair(pair(el,unpair1(unpair2(result_enc)))+1,
+                         pair(pair(er,unpair2(unpair2(result_enc)))+1, rest)),
                     te, ts, pe, re, var);
             }
 
@@ -59,19 +59,26 @@ pub proof fn lemma_forward_walk_binary(
             let rr = unpair2(unpair2(result_enc));
             let rest_r = pair(pair(er, rr)+1, rest);
 
-            //  IH on left (*left < phi — syntactic sub-term)
+            //  IH on left (*left < phi — structural)
             lemma_decode_encode_formula(*left);
             lemma_decode_encode_formula(*right);
             let t_l = lemma_forward_walk_iterate(*left, rl, var,
                 rest_r, te, ts, pe, re, fuel);
 
-            //  Right IH + combine
-            return lemma_forward_binary_right_and_combine(
-                phi, *left, *right, tag, result_enc, var,
-                rest, te, ts, pe, re, fuel,
-                t_l, rl, rr);
+            //  Backward decomposition + right IH
+            let (te_l, ts_l) = subst_state(*left, var, encode_term(t_l), te, ts);
+            lemma_subst_state_invariant(*left, var, encode_term(t_l), te, ts);
+            lemma_subst_traversal2(*left, var, t_l, rest_r, te, ts, pe, re, fuel);
+            let fuel_r = (fuel - subst_traversal_cost(*left, var)) as nat;
+            let t_r = lemma_forward_walk_iterate(*right, rr, var,
+                rest, te_l, ts_l, pe, re, fuel_r);
+
+            //  Combine
+            lemma_subst_preserves_tag(phi, var, t_l);
+            lemma_subst_preserves_tag(phi, var, t_r);
+            return lemma_binary_combine(phi, *left, *right, tag, result_enc, var, te, ts,
+                t_l, t_r, rl, rr, te_l, ts_l);
         },
-        //  Unreachable (phi must be a binary formula)
         _ => { return Term::Var { index: 0 }; },
     }
 }
