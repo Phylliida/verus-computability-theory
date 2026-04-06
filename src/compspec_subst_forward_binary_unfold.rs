@@ -19,6 +19,9 @@ pub proof fn lemma_binary_step_unfold(
     requires
         formula_tag(phi) >= 3, formula_tag(phi) <= 6,
         fuel >= 1,
+        //  Hint: pair decomposition of encode(phi) — always true by pair_surjective
+        encode(phi) == pair(formula_tag(phi),
+            pair(unpair1(unpair2(encode(phi))), unpair2(unpair2(encode(phi))))),
         unpair1(unpair2(
             compspec_iterate(check_subst_step(), fuel,
                 pair(pair(pair(encode(phi), result_enc) + 1, rest),
@@ -40,6 +43,7 @@ pub proof fn lemma_binary_step_unfold(
         )) != 0
     }),
 {
+    hide(compspec_iterate);
     let tag = formula_tag(phi);
     let phi_enc = encode(phi);
     let el = unpair1(unpair2(phi_enc));
@@ -56,7 +60,6 @@ pub proof fn lemma_binary_step_unfold(
     lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc0, input);
 
     if unpair1(result_enc) != tag {
-        //  tag_eq=0, step result has valid=0 → contradiction with precondition
         lemma_pair_surjective(result_enc);
         lemma_pair_surjective(unpair2(result_enc));
         lemma_iterate_valid_zero_contradiction((fuel-1) as nat,
