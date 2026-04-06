@@ -70,10 +70,24 @@ pub proof fn lemma_forward_walk_iterate(
         },
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
-            //  Delegate to binary walk — NO Formula sub-terms passed (avoids mutual recursion blowup)
+            //  Binary: step + unfold + tag via helper (keeps facts out of Z3 context)
+            lemma_encode_is_pair(phi);
+            lemma_subst_traversal_cost_pos(phi, var);
+            crate::compspec_subst_forward_binary_unfold::lemma_binary_step_unfold(
+                phi, result_enc, var, rest, te, ts, pe, re, fuel);
+            let tag = formula_tag(phi);
+            lemma_pair_surjective(result_enc);
+            lemma_pair_surjective(unpair2(result_enc));
+            let rl = unpair1(unpair2(result_enc));
+            let rr = unpair2(unpair2(result_enc));
+            //  Left IH
+            let t_l = lemma_forward_walk_iterate(*left, rl, var,
+                pair(pair(encode(*right), rr)+1, rest), te, ts, pe, re, (fuel-1) as nat);
+            //  Right IH + combine
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
-                phi, result_enc, var,
-                rest, te, ts, pe, re, fuel);
+                phi, t_l, result_enc, var,
+                rest, te, ts, pe, re, (fuel-1) as nat,
+                tag, rl, rr);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
             let tag = formula_tag(phi);
