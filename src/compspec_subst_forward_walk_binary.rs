@@ -12,7 +12,7 @@ verus! {
 
 ///  Binary walk: NO Formula params for left/right (avoids mutual recursion term blowup).
 ///  Extracts left/right from phi via match inside the body.
-#[verifier::rlimit(10000)]
+#[verifier::rlimit(20000)]
 pub proof fn lemma_forward_walk_binary(
     phi: Formula,
     result_enc: nat, var: nat,
