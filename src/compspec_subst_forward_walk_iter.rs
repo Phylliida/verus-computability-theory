@@ -80,11 +80,29 @@ pub proof fn lemma_forward_walk_iterate(
             crate::compspec_subst_forward_step_binary::lemma_forward_step_binary(
                 (fuel-1) as nat, phi_enc, result_enc, rest, 1, te, ts, pe, re, var);
             lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc0, input);
-            //  Delegate tag check + left IH + right IH + combine
+            //  Tag contradiction
+            if unpair1(result_enc) != tag {
+                lemma_pair_surjective(result_enc);
+                lemma_pair_surjective(unpair2(result_enc));
+                crate::compspec_subst_forward_helpers::lemma_iterate_valid_zero_contradiction(
+                    (fuel-1) as nat,
+                    pair(pair(el,unpair1(unpair2(result_enc)))+1,
+                         pair(pair(er,unpair2(unpair2(result_enc)))+1, rest)),
+                    te, ts, pe, re, var);
+            }
+            //  Left IH
+            lemma_pair_surjective(result_enc);
+            lemma_pair_surjective(unpair2(result_enc));
+            let rl = unpair1(unpair2(result_enc));
+            let rr = unpair2(unpair2(result_enc));
+            let rest_r = pair(pair(er, rr)+1, rest);
+            let t_l = lemma_forward_walk_iterate(*left, rl, var,
+                rest_r, te, ts, pe, re, (fuel-1) as nat);
+            //  Delegate right IH + combine
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
-                phi, result_enc, var,
-                rest, te, ts, pe, re, (fuel - 1) as nat,
-                tag, el, er);
+                phi, t_l, result_enc, var,
+                rest, te, ts, pe, re, (fuel-1) as nat,
+                tag, rl, rr);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
             let tag = formula_tag(phi);
