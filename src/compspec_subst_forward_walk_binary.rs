@@ -10,9 +10,9 @@ use crate::compspec_subst_forward_binary_combine::lemma_binary_combine;
 
 verus! {
 
-///  Binary walk: tag + left IH + backward decomp + right IH + combine.
-///  2-way recursion only: walk_iter ↔ this. No separate binary_right.
-#[verifier::rlimit(5000)]
+///  Binary walk: NO Formula params for left/right (avoids mutual recursion term blowup).
+///  Extracts left/right from phi via match inside the body.
+#[verifier::rlimit(10000)]
 pub proof fn lemma_forward_walk_binary(
     phi: Formula,
     result_enc: nat, var: nat,
@@ -22,9 +22,8 @@ pub proof fn lemma_forward_walk_binary(
 ) -> (t: Term)
     requires
         tag >= 3, tag <= 6,
-        el == encode(decode_formula(el)), er == encode(decode_formula(er)),
         encode(phi) == pair(tag, pair(el, er)),
-        fuel >= subst_traversal_cost(decode_formula(el), var) + subst_traversal_cost(decode_formula(er), var),
+        fuel >= subst_traversal_cost(phi, var),
         ({
             let tag_eq: nat = if unpair1(result_enc) == tag { 1nat } else { 0nat };
             let rl = unpair1(unpair2(result_enc));
@@ -59,9 +58,7 @@ pub proof fn lemma_forward_walk_binary(
             let rr = unpair2(unpair2(result_enc));
             let rest_r = pair(pair(er, rr)+1, rest);
 
-            //  IH on left (*left < phi — structural)
-            lemma_decode_encode_formula(*left);
-            lemma_decode_encode_formula(*right);
+            //  IH on left (*left < phi — structural from match)
             let t_l = lemma_forward_walk_iterate(*left, rl, var,
                 rest_r, te, ts, pe, re, fuel);
 
