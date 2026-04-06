@@ -7,13 +7,13 @@ use crate::compspec_subst_forward_eq_iter_tag::{lemma_forward_eq_tag_iter, lemma
 use crate::compspec_subst_forward_walk_atomic::lemma_forward_atomic_eq_iter;
 use crate::compspec_subst_forward_walk_atomic_in::lemma_forward_atomic_in_iter;
 use crate::compspec_subst_forward_step_not::lemma_forward_step_not;
+use crate::compspec_subst_forward_step_binary::lemma_forward_step_binary;
 use crate::compspec_subst_forward_step_quant::lemma_forward_step_quant;
 use crate::compspec_subst_forward_helpers::lemma_iterate_valid_zero_contradiction;
 
 verus! {
 
-///  Iterate-level forward walk. Binary delegated to separate file.
-#[verifier::rlimit(5000)]
+#[verifier::rlimit(8000)]
 pub proof fn lemma_forward_walk_iterate(
     phi: Formula, result_enc: nat, var: nat,
     rest: nat, te: nat, ts: nat,
@@ -68,10 +68,31 @@ pub proof fn lemma_forward_walk_iterate(
         },
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
-            //  Lean delegation — walk_binary does everything internally
+            let tag = formula_tag(phi);
+            lemma_encode_is_pair(phi);
+            lemma_unpair1_pair(tag, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(tag, pair(encode(*left), encode(*right)));
+            lemma_subst_traversal_cost_pos(phi, var);
+            lemma_forward_step_binary((fuel-1) as nat, phi_enc, result_enc, rest, 1, te, ts, pe, re, var);
+            lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc0, input);
+            if unpair1(result_enc) != tag {
+                lemma_pair_surjective(result_enc);
+                lemma_pair_surjective(unpair2(result_enc));
+                lemma_iterate_valid_zero_contradiction((fuel-1) as nat,
+                    pair(pair(encode(*left),unpair1(unpair2(result_enc)))+1,
+                         pair(pair(encode(*right),unpair2(unpair2(result_enc)))+1, rest)),
+                    te, ts, pe, re, var);
+            }
+            lemma_pair_surjective(result_enc);
+            lemma_pair_surjective(unpair2(result_enc));
+            let rl = unpair1(unpair2(result_enc));
+            let rr = unpair2(unpair2(result_enc));
+            let t_l = lemma_forward_walk_iterate(*left, rl, var,
+                pair(pair(encode(*right), rr)+1, rest), te, ts, pe, re, (fuel-1) as nat);
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
-                phi, result_enc, var,
-                rest, te, ts, pe, re, fuel);
+                phi, t_l, result_enc, var,
+                rest, te, ts, pe, re, (fuel-1) as nat,
+                tag, rl, rr);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
             let tag = formula_tag(phi);
