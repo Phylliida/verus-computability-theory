@@ -7,14 +7,14 @@ use crate::compspec_subst_forward_eq_iter_tag::{lemma_forward_eq_tag_iter, lemma
 use crate::compspec_subst_forward_walk_atomic::lemma_forward_atomic_eq_iter;
 use crate::compspec_subst_forward_walk_atomic_in::lemma_forward_atomic_in_iter;
 use crate::compspec_subst_forward_step_not::lemma_forward_step_not;
-use crate::compspec_subst_forward_step_binary::lemma_forward_step_binary;
 use crate::compspec_subst_forward_step_quant::lemma_forward_step_quant;
 use crate::compspec_subst_forward_helpers::lemma_iterate_valid_zero_contradiction;
-use crate::compspec_subst_forward_walk_binary_right::lemma_forward_binary_right_and_combine;
 
 verus! {
 
-///  Iterate-level forward walk. 2-way mutual recursion with binary_right_and_combine.
+///  Iterate-level forward walk — simple cases only (Eq/In/Not/Quantifier).
+///  Binary cases are in a separate file to reduce Z3 context.
+///  Uses `decreases (phi, 1nat)` so the binary helper can use `decreases (phi, 0nat)`.
 #[verifier::rlimit(5000)]
 pub proof fn lemma_forward_walk_iterate(
     phi: Formula, result_enc: nat, var: nat,
@@ -71,32 +71,20 @@ pub proof fn lemma_forward_walk_iterate(
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
             let tag = formula_tag(phi);
+            let el = encode(*left);
+            let er = encode(*right);
             lemma_encode_is_pair(phi);
-            lemma_unpair1_pair(tag, pair(encode(*left), encode(*right)));
-            lemma_unpair2_pair(tag, pair(encode(*left), encode(*right)));
-            lemma_forward_step_binary((fuel-1) as nat, phi_enc, result_enc, rest, 1, te, ts, pe, re, var);
+            lemma_unpair1_pair(tag, pair(el, er));
+            lemma_unpair2_pair(tag, pair(el, er));
+            //  Step + unfold to get post-step iterate
+            crate::compspec_subst_forward_step_binary::lemma_forward_step_binary(
+                (fuel-1) as nat, phi_enc, result_enc, rest, 1, te, ts, pe, re, var);
             lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc0, input);
-            if unpair1(result_enc) != tag {
-                lemma_pair_surjective(result_enc);
-                lemma_pair_surjective(unpair2(result_enc));
-                lemma_iterate_valid_zero_contradiction((fuel-1) as nat,
-                    pair(pair(encode(*left),unpair1(unpair2(result_enc)))+1,
-                         pair(pair(encode(*right),unpair2(unpair2(result_enc)))+1, rest)),
-                    te, ts, pe, re, var);
-            }
-            lemma_pair_surjective(result_enc);
-            lemma_pair_surjective(unpair2(result_enc));
-            let rl = unpair1(unpair2(result_enc));
-            let rr = unpair2(unpair2(result_enc));
-            //  IH on left (inline, not delegated)
-            let rest_r = pair(pair(encode(*right), rr)+1, rest);
-            let t_l = lemma_forward_walk_iterate(*left, rl, var,
-                rest_r, te, ts, pe, re, (fuel-1) as nat);
-            //  Right IH + combine (separate file, 2-way mutual recursion)
-            return lemma_forward_binary_right_and_combine(
-                phi, *left, *right, tag, result_enc, var,
+            //  Delegate tag check + left IH + right IH + combine
+            return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
+                phi, *left, *right, result_enc, var,
                 rest, te, ts, pe, re, (fuel-1) as nat,
-                t_l, rl, rr);
+                tag, el, er);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
             let tag = formula_tag(phi);
