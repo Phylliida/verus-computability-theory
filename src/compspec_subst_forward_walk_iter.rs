@@ -12,9 +12,7 @@ use crate::compspec_subst_forward_helpers::lemma_iterate_valid_zero_contradictio
 
 verus! {
 
-///  Iterate-level forward walk — simple cases only (Eq/In/Not/Quantifier).
-///  Binary cases are in a separate file to reduce Z3 context.
-///  Uses `decreases (phi, 1nat)` so the binary helper can use `decreases (phi, 0nat)`.
+///  Iterate-level forward walk. Binary delegated to separate file.
 #[verifier::rlimit(5000)]
 pub proof fn lemma_forward_walk_iterate(
     phi: Formula, result_enc: nat, var: nat,
@@ -70,24 +68,10 @@ pub proof fn lemma_forward_walk_iterate(
         },
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
-            //  Binary: step + unfold + tag via helper (keeps facts out of Z3 context)
-            lemma_encode_is_pair(phi);
-            lemma_subst_traversal_cost_pos(phi, var);
-            crate::compspec_subst_forward_binary_unfold::lemma_binary_step_unfold(
-                phi, result_enc, var, rest, te, ts, pe, re, fuel);
-            let tag = formula_tag(phi);
-            lemma_pair_surjective(result_enc);
-            lemma_pair_surjective(unpair2(result_enc));
-            let rl = unpair1(unpair2(result_enc));
-            let rr = unpair2(unpair2(result_enc));
-            //  Left IH
-            let t_l = lemma_forward_walk_iterate(*left, rl, var,
-                pair(pair(encode(*right), rr)+1, rest), te, ts, pe, re, (fuel-1) as nat);
-            //  Right IH + combine
+            //  Lean delegation — walk_binary does everything internally
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
-                phi, t_l, result_enc, var,
-                rest, te, ts, pe, re, (fuel-1) as nat,
-                tag, rl, rr);
+                phi, result_enc, var,
+                rest, te, ts, pe, re, fuel);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
             let tag = formula_tag(phi);
