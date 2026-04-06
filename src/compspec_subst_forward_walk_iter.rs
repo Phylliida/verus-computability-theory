@@ -70,7 +70,14 @@ pub proof fn lemma_forward_walk_iterate(
         },
         Formula::And { left, right } | Formula::Or { left, right }
         | Formula::Implies { left, right } | Formula::Iff { left, right } => {
-            //  Delegate to binary walk (separate file, decreases (phi, 0))
+            //  Step + unfold done here; binary walk takes the post-step iterate
+            let tag = formula_tag(phi);
+            lemma_encode_is_pair(phi);
+            lemma_unpair1_pair(tag, pair(encode(*left), encode(*right)));
+            lemma_unpair2_pair(tag, pair(encode(*left), encode(*right)));
+            crate::compspec_subst_forward_step_binary::lemma_forward_step_binary(
+                (fuel-1) as nat, phi_enc, result_enc, rest, 1, te, ts, pe, re, var);
+            lemma_compspec_iterate_unfold(check_subst_step(), fuel, acc0, input);
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
                 phi, *left, *right, result_enc, var,
                 rest, te, ts, pe, re, fuel);
