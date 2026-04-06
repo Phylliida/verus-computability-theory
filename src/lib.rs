@@ -215,6 +215,9 @@ pub mod compspec_subst_forward_walk_iter;
 pub mod compspec_subst_forward_walk_binary;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_subst_forward_walk_binary_right;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_subst_forward_binary_tag;
 
 #[cfg(verus_keep_ghost)]
