@@ -83,7 +83,7 @@ pub proof fn lemma_forward_walk_iterate(
             //  Delegate tag check + left IH + right IH + combine
             return crate::compspec_subst_forward_walk_binary::lemma_forward_walk_binary(
                 phi, result_enc, var,
-                rest, te, ts, pe, re, (fuel-1) as nat,
+                rest, te, ts, pe, re, (fuel - 1) as nat,
                 tag, el, er);
         },
         Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
