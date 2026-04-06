@@ -10,7 +10,7 @@ verus! {
 
 ///  Binary step + unfold + tag match: converts phi-level iterate to left+right-level iterate.
 ///  Non-recursive — isolated in own file to keep step/unfold facts out of the walk's Z3 context.
-#[verifier::rlimit(2000)]
+#[verifier::rlimit(1500)]
 pub proof fn lemma_binary_step_unfold(
     phi: Formula, result_enc: nat, var: nat,
     rest: nat, te: nat, ts: nat,
