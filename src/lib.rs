@@ -242,6 +242,18 @@ pub mod compspec_eq_subst_forward_step2;
 pub mod compspec_eq_subst_forward_walk;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_walk_atomic;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_walk_unary;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_walk_binary;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_walk_quant;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
