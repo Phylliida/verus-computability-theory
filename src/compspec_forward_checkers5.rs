@@ -4,6 +4,7 @@ use crate::computable::*;
 use crate::formula::*;
 use crate::compspec_halts::*;
 use crate::proof_system::*;
+use crate::compspec_subst_forward::lemma_check_subst_comp_forward;
 
 verus! {
 
@@ -115,10 +116,7 @@ proof fn universal_inst_structure(enc: nat)
     }
 }
 
-//  Main forward proof.
-//  NOTE: This proof requires check_subst_comp forward soundness (not yet built).
-//  For now, includes the structure extraction + decode + skeleton.
-//  The check_subst_comp soundness will be added as a separate module.
+#[verifier::rlimit(3000)]
 pub proof fn lemma_check_universal_inst_forward(enc: nat)
     requires
         eval_comp(check_axiom_universal_inst(), enc) != 0,
@@ -183,41 +181,15 @@ pub proof fn lemma_check_universal_inst_forward(enc: nat)
     lemma_encode_decode_formula(result_enc);
     //  encode(phi) == phi_enc, encode(result) == result_enc
 
-    //  check_subst_comp(encode(phi), encode(result), var) != 0
-    //  Need: exists t. result == subst(phi, var, t)
-    //  This requires check_subst_comp forward soundness (TODO).
-    //  For now, use the backward direction + the fact that outer_f is Implies(Forall(var, phi), result)
-    //  and the checker accepted, to establish the axiom.
+    //  Forward soundness: check_subst_comp accepts → result_enc == encode(subst(phi, var, t))
+    let t = lemma_check_subst_comp_forward(phi, result_enc, var);
 
-    //  Actually: since outer_f = Implies(Forall(var, phi_actual), result_actual)
-    //  and phi == decode(encode(phi_actual)) == phi_actual
-    //  and result == decode(encode(result_actual)) == result_actual
-    //  We have outer_f == Implies(Forall(var, phi), result)
-    //  And is_axiom_universal_inst(outer_f) requires exists t. result == subst(phi, var, t)
-    //  The checker verifies this, but we need the forward soundness to extract t.
+    //  decode(result_enc) == subst(phi, var, t) via encode injectivity
+    lemma_decode_encode_formula(subst(phi, var, t));
 
-    //  PLACEHOLDER: use the checker acceptance + backward direction argument
-    //  This needs check_subst_comp forward soundness to be complete.
-    //  TODO: Build check_subst_comp forward soundness module.
-
-    //  For now, assert the key result that check_subst_comp soundness would give:
-    //  assert(exists|t: Term| result == subst(phi, var, t));
-    //  Then conclude:
-    //  assert(is_axiom_universal_inst(decode_formula(enc)));
-
-    //  TODO: Complete once check_subst_comp forward soundness is built.
-    //  Need: lemma_check_subst_comp_forward(phi, result, var)
-    //    requires eval_comp(check_subst_comp(), pair(encode(phi), pair(encode(result), var))) != 0
-    //    ensures exists|t: Term| result == subst(phi, var, t)
-    //  Then:
-    //    let t: Term = choose|t: Term| result == subst(phi, var, t);
-    //    assert(decode_formula(enc) == mk_implies(mk_forall(var, phi), subst(phi, var, t)));
-    //    assert(is_axiom_universal_inst(decode_formula(enc)));
-    //
-    //  Architecture: same pattern as has_free_var detection —
-    //  structural induction on phi, walk lemma tracking t_enc/t_set state,
-    //  step helpers reusable from compspec_subst_step_helpers.rs.
-    //  Estimated: ~300 lines in new module.
+    //  decode(enc) == Implies(Forall(var, phi), subst(phi, var, t))
+    //  → is_axiom_universal_inst(decode(enc))
+    assert(decode_formula(enc) == mk_implies(mk_forall(var, phi), subst(phi, var, t)));
 }
 
 } // verus!
