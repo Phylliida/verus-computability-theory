@@ -51,7 +51,7 @@ pub proof fn lemma_eq_subst_dispatch(
 }
 
 //  Tag dispatch: navigate the is_compound / tag==2 / is_quantifier cascade.
-proof fn lemma_esb_dispatch_atomic(n: nat, left_tag_val: nat)
+pub proof fn lemma_esb_dispatch_atomic(n: nat, left_tag_val: nat)
     requires left_tag_val <= 1, eval_comp(esb_left_tag(), n) == left_tag_val,
     ensures eval_comp(check_eq_subst_process(), n) == eval_comp(esb_atomic_ok(), n),
 {
@@ -69,7 +69,7 @@ proof fn lemma_esb_dispatch_atomic(n: nat, left_tag_val: nat)
         }, n);
 }
 
-proof fn lemma_esb_dispatch_unary(n: nat, left_tag_val: nat)
+pub proof fn lemma_esb_dispatch_unary(n: nat, left_tag_val: nat)
     requires left_tag_val == 2, eval_comp(esb_left_tag(), n) == left_tag_val,
     ensures eval_comp(check_eq_subst_process(), n) == eval_comp(esb_unary_ok(), n),
 {
@@ -99,7 +99,7 @@ proof fn lemma_esb_dispatch_unary(n: nat, left_tag_val: nat)
         }, n);
 }
 
-proof fn lemma_esb_dispatch_binary(n: nat, left_tag_val: nat)
+pub proof fn lemma_esb_dispatch_binary(n: nat, left_tag_val: nat)
     requires left_tag_val >= 3, left_tag_val <= 6, eval_comp(esb_left_tag(), n) == left_tag_val,
     ensures eval_comp(check_eq_subst_process(), n) == eval_comp(esb_binary_ok(), n),
 {
@@ -130,7 +130,7 @@ proof fn lemma_esb_dispatch_binary(n: nat, left_tag_val: nat)
     lemma_eval_ifzero_then(cs_lt(cs_const(6), esb_left_tag()), esb_binary_ok(), esb_quant_ok(), n);
 }
 
-proof fn lemma_esb_dispatch_quant(n: nat, left_tag_val: nat)
+pub proof fn lemma_esb_dispatch_quant(n: nat, left_tag_val: nat)
     requires left_tag_val >= 7, eval_comp(esb_left_tag(), n) == left_tag_val,
     ensures eval_comp(check_eq_subst_process(), n) == eval_comp(esb_quant_ok(), n),
 {
@@ -165,7 +165,7 @@ proof fn lemma_esb_dispatch_quant(n: nat, left_tag_val: nat)
 //  Common extraction: establish eval values for shared sub-expressions.
 //  ====================================================================
 
-proof fn lemma_esb_extract(
+pub proof fn lemma_esb_extract(
     counter: nat, entry_val: nat, rest_val: nat, valid: nat,
     left_enc_s: nat, right_enc_s: nat, x_enc: nat, y_enc: nat,
     f1_enc: nat, f2_enc: nat,

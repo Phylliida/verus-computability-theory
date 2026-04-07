@@ -236,6 +236,9 @@ pub mod compspec_eq_subst_forward;
 pub mod compspec_eq_subst_forward_step;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_step2;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_eq_subst_forward_walk;
 
 #[cfg(verus_keep_ghost)]
