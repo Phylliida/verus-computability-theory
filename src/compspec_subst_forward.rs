@@ -3,88 +3,35 @@ use crate::pairing::*;
 use crate::computable::*;
 use crate::formula::*;
 use crate::compspec_halts::*;
-use crate::compspec_subst_helpers::*;
-use crate::compspec_subst_forward_atomic::*;
+use crate::compspec_subst_helpers::lemma_check_subst_unfold;
+use crate::compspec_subst_forward_walk_iter::lemma_forward_walk_iterate;
 
 verus! {
 
-///  Forward soundness entry point.
-///  If check_subst_comp accepts, result_enc encodes subst(phi, var, t) for some t.
-pub proof fn lemma_check_subst_comp_forward(phi_enc: nat, result_enc: nat, var: nat)
+///  Forward soundness of check_subst_comp:
+///  If the checker accepts (phi_enc, result_enc, var), then
+///  result = subst(phi, var, t) for some term t.
+pub proof fn lemma_check_subst_comp_forward(phi: Formula, result_enc: nat, var: nat) -> (t: Term)
     requires
-        eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
-        exists|f: Formula| encode(f) == phi_enc,
+        eval_comp(check_subst_comp(), pair(encode(phi), pair(result_enc, var))) != 0,
         exists|f: Formula| encode(f) == result_enc,
     ensures
-        exists|t: Term| decode_formula(result_enc) == subst(decode_formula(phi_enc), var, t),
+        result_enc == encode(subst(phi, var, t)),
 {
-    let phi: Formula = choose|f: Formula| encode(f) == phi_enc;
-    let result: Formula = choose|f: Formula| encode(f) == result_enc;
-    lemma_decode_encode_formula(phi);
-    lemma_decode_encode_formula(result);
+    let phi_enc = encode(phi);
 
-    let t = lemma_forward_walk(phi, result, var, phi_enc, result_enc);
-    assert(decode_formula(result_enc) == subst(decode_formula(phi_enc), var, t));
-}
+    //  Bridge: eval_comp(check_subst_comp(), ...) == unpair1(unpair2(compspec_iterate(...)))
+    lemma_check_subst_unfold(phi_enc, result_enc, var);
 
-///  Forward walk: structural induction on phi.
-proof fn lemma_forward_walk(
-    phi: Formula, result: Formula, var: nat,
-    phi_enc: nat, result_enc: nat,
-) -> (t: Term)
-    requires
-        encode(phi) == phi_enc,
-        encode(result) == result_enc,
-        eval_comp(check_subst_comp(), pair(phi_enc, pair(result_enc, var))) != 0,
-    ensures
-        result == subst(phi, var, t),
-    decreases phi,
-{
-    match phi {
-        Formula::Eq { left, right } => {
-            lemma_forward_atomic_eq(phi, left, right, result, var, phi_enc, result_enc)
-        },
-        Formula::In { left, right } => {
-            lemma_forward_atomic_in(phi, left, right, result, var, phi_enc, result_enc)
-        },
-        //  Compound cases: structural induction via checker's push/recurse pattern.
-        //  TODO: implement these cases (checker pushes sub-pairs, by IH subs satisfy property)
-        Formula::Not { sub } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t  //  PLACEHOLDER
-        },
-        Formula::And { left, right } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
-        Formula::Or { left, right } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
-        Formula::Implies { left, right } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
-        Formula::Iff { left, right } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
-        Formula::Forall { var: v, sub } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
-        Formula::Exists { var: v, sub } => {
-            let t = Term::Var { index: 0 };
-            lemma_check_subst_comp_backward(phi, var, t);
-            t
-        },
+    //  Fuel adequacy: phi_enc + 1 >= subst_traversal_cost(phi, var)
+    lemma_subst_traversal_cost_pos(phi, var);
+    if phi_enc > 0 {
+        lemma_encode_ge_subst_cost(phi, var);
     }
+
+    //  Forward walk at iterate level
+    lemma_forward_walk_iterate(phi, result_enc, var,
+        0nat, 0nat, 0nat, phi_enc, result_enc, (phi_enc + 1) as nat)
 }
 
 } // verus!
