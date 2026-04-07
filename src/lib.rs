@@ -230,6 +230,9 @@ pub mod compspec_subst_forward_quant_tag;
 pub mod compspec_subst_induction2;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
