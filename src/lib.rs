@@ -233,6 +233,12 @@ pub mod compspec_subst_induction2;
 pub mod compspec_eq_subst_forward;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_step;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_walk;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
