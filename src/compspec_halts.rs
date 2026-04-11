@@ -579,11 +579,14 @@ pub open spec fn check_eq_subst_pair() -> CompSpec {
     let left_enc = cs_fst(CompSpec::Id);
     let right_enc = cs_fst(cs_snd(CompSpec::Id));
     let entry = cs_pair(left_enc, right_enc);
+    //  fuel = left_enc + 1 (the +1 ensures at least 1 step even when left_enc=0,
+    //  needed for soundness when f1 = Eq(Var(0), Var(0)))
+    let left_plus_1 = CompSpec::Add { left: Box::new(left_enc), right: Box::new(cs_const(1)) };
 
     cs_comp(
         cs_snd(CompSpec::Id),  //  extract valid from pair(stack, valid)
         CompSpec::BoundedRec {
-            count_fn: Box::new(left_enc),  //  fuel = left_enc (generous)
+            count_fn: Box::new(left_plus_1),
             base: Box::new(cs_pair(
                 //  stack with one entry
                 cs_pair(CompSpec::Add { left: Box::new(entry), right: Box::new(cs_const(1)) }, cs_const(0)),

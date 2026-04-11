@@ -888,7 +888,7 @@ pub proof fn lemma_eq_subst_walk(
 
 //  Helper: unfold check_eq_subst_pair to iterate and extract result.
 #[verifier::rlimit(500)]
-proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: nat)
+pub proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: nat)
     ensures ({
         let input = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
         let entry = pair(f1_enc, f2_enc);
