@@ -151,7 +151,7 @@ proof fn lemma_cis_step_eq()
         step == check_is_sentence_step()
     }),
 {
-    //  check_is_sentence_step() is not opaque, so Z3 can unfold and match
+    reveal(check_is_sentence_step);
 }
 
 ///  Main: one step of check_is_sentence_step preserves acc when has_free_var returns 0.
@@ -195,8 +195,8 @@ proof fn lemma_iterate_ext(
 proof fn lemma_cis_compspec_iterate(f_enc: nat, fuel: nat, acc: nat)
     requires
         acc != 0,
-        fuel <= f_enc,
-        forall|v: nat| v < f_enc ==>
+        fuel <= f_enc + 1,
+        forall|v: nat| v <= f_enc ==>
             eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0,
     ensures
         compspec_iterate(check_is_sentence_step(), fuel, acc, f_enc) != 0,
@@ -204,7 +204,7 @@ proof fn lemma_cis_compspec_iterate(f_enc: nat, fuel: nat, acc: nat)
 {
     if fuel > 0 {
         let i = (fuel - 1) as nat;
-        assert(i < f_enc);
+        assert(i <= f_enc);
         lemma_cis_step_preserves(i, acc, f_enc);
         lemma_cis_compspec_iterate(f_enc, (fuel - 1) as nat, acc);
     }
@@ -213,19 +213,25 @@ proof fn lemma_cis_compspec_iterate(f_enc: nat, fuel: nat, acc: nat)
 ///  Main: for encoded sentences, check_is_sentence returns nonzero.
 ///  Uses lemma_eval_bounded_rec to unfold eval_comp(BoundedRec{...}) to compspec_iterate,
 ///  then lemma_cis_compspec_iterate to prove the iteration result is nonzero.
+///  Requires checking has_free_var for all v <= f_enc (not just v < f_enc) since
+///  fuel is now f_enc + 1.
 pub proof fn lemma_check_is_sentence_nonzero(f_enc: nat)
     requires
-        forall|v: nat| v < f_enc ==>
+        forall|v: nat| v <= f_enc ==>
             eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0,
     ensures
         eval_comp(check_is_sentence(), f_enc) != 0,
 {
     //  Step 1: Unfold eval_comp(check_is_sentence(), f_enc) to compspec_iterate
-    lemma_eval_bounded_rec(CompSpec::Id, cs_const(1), check_is_sentence_step(), f_enc);
-    //  Now: eval_comp(check_is_sentence(), f_enc) == compspec_iterate(step, f_enc, 1, f_enc)
+    let f_enc_plus_1_cs = CompSpec::Add { left: Box::new(CompSpec::Id), right: Box::new(cs_const(1)) };
+    lemma_eval_bounded_rec(f_enc_plus_1_cs, cs_const(1), check_is_sentence_step(), f_enc);
+    //  Now: eval_comp(check_is_sentence(), f_enc) == compspec_iterate(step, f_enc + 1, 1, f_enc)
 
-    //  Step 2: Prove compspec_iterate(step, f_enc, 1, f_enc) != 0
-    lemma_cis_compspec_iterate(f_enc, f_enc, 1);
+    //  Need: eval_comp(f_enc_plus_1_cs, f_enc) == f_enc + 1
+    lemma_eval_add(CompSpec::Id, cs_const(1), f_enc);
+
+    //  Step 2: Prove compspec_iterate(step, f_enc + 1, 1, f_enc) != 0
+    lemma_cis_compspec_iterate(f_enc, (f_enc + 1) as nat, 1);
 }
 
 } //  verus!
