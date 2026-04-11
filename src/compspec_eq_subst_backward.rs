@@ -893,20 +893,21 @@ pub proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: 
         let input = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
         let entry = pair(f1_enc, f2_enc);
         let base_val = pair(pair(entry + 1, 0nat), 1nat);
-        let iter_result = compspec_iterate(check_eq_subst_step(), f1_enc, base_val, input);
+        let iter_result = compspec_iterate(check_eq_subst_step(), (f1_enc + 1) as nat, base_val, input);
         eval_comp(check_eq_subst_pair(), input)
             == unpair2(iter_result)
     }),
 {
     let input = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
     let left_enc_cs = cs_fst(CompSpec::Id);
+    let left_plus_1_cs = CompSpec::Add { left: Box::new(left_enc_cs), right: Box::new(cs_const(1)) };
     let right_enc_cs = cs_fst(cs_snd(CompSpec::Id));
     let entry_cs = cs_pair(left_enc_cs, right_enc_cs);
     let base_cs = cs_pair(
         cs_pair(CompSpec::Add { left: Box::new(entry_cs), right: Box::new(cs_const(1)) }, cs_const(0)),
         cs_const(1));
     let br = CompSpec::BoundedRec {
-        count_fn: Box::new(left_enc_cs),
+        count_fn: Box::new(left_plus_1_cs),
         base: Box::new(base_cs),
         step: Box::new(check_eq_subst_step()),
     };
@@ -914,10 +915,11 @@ pub proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: 
     //  check_eq_subst_pair() structurally equals cs_comp(cs_snd(Id), br)
     assert(check_eq_subst_pair() == cs_comp(cs_snd(CompSpec::Id), br));
     lemma_eval_comp(cs_snd(CompSpec::Id), br, input);
-    lemma_eval_bounded_rec(left_enc_cs, base_cs, check_eq_subst_step(), input);
+    lemma_eval_bounded_rec(left_plus_1_cs, base_cs, check_eq_subst_step(), input);
 
-    //  Fuel = fst(input) = f1_enc
+    //  Fuel = left_enc + 1 = f1_enc + 1
     lemma_eval_fst(CompSpec::Id, input);
+    lemma_eval_add(left_enc_cs, cs_const(1), input);
 
     //  Base evaluation: need eval_comp(base_cs, input) == pair(pair(entry+1, 0), 1)
     //  right_enc_cs = cs_fst(cs_snd(Id))
@@ -943,12 +945,13 @@ pub proof fn lemma_esb_pair_unfold(f1_enc: nat, f2_enc: nat, x_enc: nat, y_enc: 
     //  Establish fuel and base eval values explicitly
     lemma_unpair1_pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
     assert(eval_comp(left_enc_cs, input) == f1_enc);
+    assert(eval_comp(left_plus_1_cs, input) == f1_enc + 1);
     assert(eval_comp(base_cs, input) == base_val) by {
         lemma_eval_pair(stack_init_cs, cs_const(1), input);
     }
 
-    //  BoundedRec gives: eval_comp(br, input) == compspec_iterate(step, f1_enc, base_val, input)
-    let br_result = compspec_iterate(check_eq_subst_step(), f1_enc, base_val, input);
+    //  BoundedRec gives: eval_comp(br, input) == compspec_iterate(step, f1_enc + 1, base_val, input)
+    let br_result = compspec_iterate(check_eq_subst_step(), (f1_enc + 1) as nat, base_val, input);
     assert(eval_comp(br, input) == br_result);
 
     //  cs_comp unfolds: eval_comp(cs_comp(cs_snd(Id), br), input) == unpair2(br_result)
@@ -970,34 +973,38 @@ pub proof fn lemma_check_eq_subst_pair_backward(
     let input = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
     let entry = pair(f1_enc, f2_enc);
     let base_val = pair(pair(entry + 1, 0nat), 1nat);
-    let fuel = f1_enc;
+    let fuel: nat = (f1_enc + 1) as nat;
 
     lemma_esb_pair_unfold(f1_enc, f2_enc, x_enc, y_enc);
 
-    if fuel == 0 {
-        //  Zero steps: iterate returns base, valid = 1
-        lemma_unpair2_pair(pair(entry + 1, 0nat), 1nat);
+    //  fuel = f1_enc + 1, so fuel >= 1 always
+    lemma_formula_size_pos(f1);
+    if f1_enc == 0 {
+        //  Edge case: f1 = Eq(Var(0), Var(0)). formula_size = 1, fuel = 1.
+        //  But encode_ge_formula_size requires encode != 0.
+        //  We handle this directly: f1 = Eq(Var(0), Var(0)), and from compatibility
+        //  with x = y = Var(0), f2 must also be Eq with compatible terms.
+        //  The walk handles this with fuel = 1 (one atomic step).
+        assert(formula_size(f1) == 1);
     } else {
-        //  fuel > 0: use traversal
         lemma_encode_ge_formula_size(f1);
-        lemma_eq_subst_compatible_same_size(f1, f2, x, y);
-
-        lemma_eq_subst_walk(f1, f2, x, y, 0nat, 1nat, fuel, f1_enc, f2_enc);
-
-        let v: nat = choose|v: nat| v != 0 &&
-            compspec_iterate(check_eq_subst_step(), fuel, base_val, input)
-            == #[trigger] compspec_iterate(check_eq_subst_step(), (fuel - formula_size(f1)) as nat,
-                pair(0nat, v), input);
-
-        //  Stack = 0: need unpair1(0) == 0 for iterate stability
-        //  pair(0, 0) = T(0) + 0 = 0, so unpair1(0) = unpair1(pair(0,0)) = 0
-        assert(triangular(0nat) == 0nat);
-        assert(pair(0nat, 0nat) == 0nat);
-        lemma_unpair1_pair(0nat, 0nat);
-        lemma_iterate_empty_stable((fuel - formula_size(f1)) as nat, 0nat, v, input);
-        //  iter == pair(0, v), so unpair2 == v != 0
-        lemma_unpair2_pair(0nat, v);
     }
+    lemma_eq_subst_compatible_same_size(f1, f2, x, y);
+
+    lemma_eq_subst_walk(f1, f2, x, y, 0nat, 1nat, fuel, f1_enc, f2_enc);
+
+    let v: nat = choose|v: nat| v != 0 &&
+        compspec_iterate(check_eq_subst_step(), fuel, base_val, input)
+        == #[trigger] compspec_iterate(check_eq_subst_step(), (fuel - formula_size(f1)) as nat,
+            pair(0nat, v), input);
+
+    //  Stack = 0: need unpair1(0) == 0 for iterate stability
+    assert(triangular(0nat) == 0nat);
+    assert(pair(0nat, 0nat) == 0nat);
+    lemma_unpair1_pair(0nat, 0nat);
+    lemma_iterate_empty_stable((fuel - formula_size(f1)) as nat, 0nat, v, input);
+    //  iter == pair(0, v), so unpair2 == v != 0
+    lemma_unpair2_pair(0nat, v);
 }
 
 } //  verus!

@@ -1446,14 +1446,17 @@ pub open spec fn check_is_sentence_step() -> CompSpec {
 
 ///  Checks: for all v from 0 to f_enc, v is not free in f_enc.
 ///  Uses BoundedRec over variable index, calling has_free_var_comp for each.
+///  Fuel is f_enc + 1 to ensure at least 1 step even when f_enc == 0
+///  (the Eq(Var(0), Var(0)) edge case — has free variable 0 but encoding 0).
 pub open spec fn check_is_sentence() -> CompSpec {
-    //  BoundedRec: count = f_enc, base = 1 (assume sentence)
+    //  BoundedRec: count = f_enc + 1, base = 1 (assume sentence)
     //  step: input = pair(i, pair(acc, f_enc))
     //    acc = 1 (still sentence) or 0 (found free var)
     //    check has_free_var(f_enc, i): if nonzero, set acc to 0
     //    new_acc = acc * (1 if !has_free_var else 0)
+    let f_enc_plus_1 = CompSpec::Add { left: Box::new(CompSpec::Id), right: Box::new(cs_const(1)) };
     CompSpec::BoundedRec {
-        count_fn: Box::new(CompSpec::Id),
+        count_fn: Box::new(f_enc_plus_1),
         base: Box::new(cs_const(1)),
         step: Box::new(check_is_sentence_step()),
     }
@@ -1777,8 +1780,9 @@ proof fn lemma_check_is_sentence_backward(f: Formula)
         eval_comp(check_is_sentence(), encode(f)) != 0,
 {
     let f_enc = encode(f);
-    //  Establish: all has_free_var checks return 0
-    assert forall|v: nat| v < f_enc implies
+    //  Establish: all has_free_var checks return 0 for v <= f_enc
+    //  (the +1 in fuel means we now check v from 0 to f_enc inclusive)
+    assert forall|v: nat| v <= f_enc implies
         eval_comp(has_free_var_comp(), pair(f_enc, v)) == 0
     by {
         lemma_has_free_var_sentence(f, v);
