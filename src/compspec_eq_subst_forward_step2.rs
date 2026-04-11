@@ -491,4 +491,115 @@ pub proof fn lemma_esb_forward_unary_tags_match(
     };
 }
 
+///  For binary dispatch (left_tag in 3..=6): if step valid != 0, then tags match.
+#[verifier::rlimit(800)]
+pub proof fn lemma_esb_forward_binary_tags_match(
+    left_node: nat, right_node: nat, tag: nat,
+    rest_val: nat, valid: nat, counter: nat,
+    left_enc_s: nat, right_enc_s: nat, x_enc: nat, y_enc: nat,
+)
+    requires
+        valid > 0,
+        tag >= 3, tag <= 6,
+        unpair1(left_node) == tag,
+    ensures ({
+        let entry_val = pair(left_node, right_node) + 1;
+        let acc = pair(pair(entry_val, rest_val), valid);
+        let s = pair(left_enc_s, pair(right_enc_s, pair(x_enc, y_enc)));
+        let n = pair(counter, pair(acc, s));
+        unpair2(eval_comp(check_eq_subst_step(), n)) != 0 ==>
+            unpair1(right_node) == tag
+    }),
+{
+    hide(eval_comp);
+    let entry_val = pair(left_node, right_node) + 1;
+    let acc = pair(pair(entry_val, rest_val), valid);
+    let s = pair(left_enc_s, pair(right_enc_s, pair(x_enc, y_enc)));
+    let n = pair(counter, pair(acc, s));
+
+    //  Dispatch
+    assert(eval_comp(check_eq_subst_step(), n)
+        == eval_comp(check_eq_subst_process(), n)) by {
+        reveal(eval_comp);
+        lemma_eq_subst_dispatch(counter, entry_val, rest_val, valid, s);
+    };
+    //  Entry extraction
+    assert(eval_comp(esb_left_tag(), n) == tag) by {
+        reveal(eval_comp);
+        crate::compspec_free_var_helpers::lemma_eval_br_acc(counter, acc, s);
+        lemma_eval_fst(br_acc(), n);
+        lemma_unpair1_pair(pair(entry_val, rest_val), valid);
+        lemma_eval_fst(cs_fst(br_acc()), n);
+        lemma_unpair1_pair(entry_val, rest_val);
+        lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), n);
+        lemma_eval_pred(entry_val);
+        lemma_eval_fst(esb_entry(), n);
+        lemma_unpair1_pair(left_node, right_node);
+        lemma_eval_fst(esb_left_node(), n);
+    };
+    //  Binary dispatch
+    assert(eval_comp(check_eq_subst_process(), n)
+        == eval_comp(esb_binary_ok(), n)) by {
+        reveal(eval_comp);
+        lemma_esb_dispatch_binary(n, tag);
+    };
+    //  Right tag
+    assert(eval_comp(esb_entry(), n) == pair(left_node, right_node)) by {
+        reveal(eval_comp);
+        crate::compspec_free_var_helpers::lemma_eval_br_acc(counter, acc, s);
+        lemma_eval_fst(br_acc(), n);
+        lemma_unpair1_pair(pair(entry_val, rest_val), valid);
+        lemma_eval_fst(cs_fst(br_acc()), n);
+        lemma_unpair1_pair(entry_val, rest_val);
+        lemma_eval_comp(CompSpec::Pred, cs_fst(cs_fst(br_acc())), n);
+        lemma_eval_pred(entry_val);
+    };
+    assert(eval_comp(esb_right_node(), n) == right_node) by {
+        reveal(eval_comp); lemma_eval_snd(esb_entry(), n);
+        lemma_unpair2_pair(left_node, right_node);
+    };
+    assert(eval_comp(esb_right_tag(), n) == unpair1(right_node)) by {
+        reveal(eval_comp); lemma_eval_fst(esb_right_node(), n);
+    };
+    //  esb_binary_ok valid = tags_match
+    let tm: nat = if unpair1(right_node) == tag { 1nat } else { 0nat };
+    assert(eval_comp(esb_tags_match(), n) == tm) by {
+        reveal(eval_comp);
+        lemma_eval_eq(esb_left_tag(), esb_right_tag(), n);
+    };
+    //  Result valid
+    assert(unpair2(eval_comp(esb_binary_ok(), n)) == tm) by {
+        reveal(eval_comp);
+        crate::compspec_free_var_helpers::lemma_eval_br_acc(counter, acc, s);
+        lemma_eval_fst(br_acc(), n);
+        lemma_unpair1_pair(pair(entry_val, rest_val), valid);
+        lemma_eval_snd(cs_fst(br_acc()), n);
+        lemma_unpair2_pair(entry_val, rest_val);
+        //  Build the new_stack
+        lemma_eval_snd(esb_left_node(), n);
+        lemma_eval_snd(esb_right_node(), n);
+        let lc = unpair2(left_node);
+        let rc = unpair2(right_node);
+        let el_cs = cs_pair(cs_fst(cs_snd(esb_left_node())), cs_fst(cs_snd(esb_right_node())));
+        let er_cs = cs_pair(cs_snd(cs_snd(esb_left_node())), cs_snd(cs_snd(esb_right_node())));
+        lemma_eval_fst(cs_snd(esb_left_node()), n);
+        lemma_eval_fst(cs_snd(esb_right_node()), n);
+        lemma_eval_snd(cs_snd(esb_left_node()), n);
+        lemma_eval_snd(cs_snd(esb_right_node()), n);
+        let el = pair(unpair1(lc), unpair1(rc));
+        let er = pair(unpair2(lc), unpair2(rc));
+        lemma_eval_pair(cs_fst(cs_snd(esb_left_node())), cs_fst(cs_snd(esb_right_node())), n);
+        lemma_eval_pair(cs_snd(cs_snd(esb_left_node())), cs_snd(cs_snd(esb_right_node())), n);
+        let el1 = CompSpec::Add { left: Box::new(el_cs), right: Box::new(cs_const(1)) };
+        let er1 = CompSpec::Add { left: Box::new(er_cs), right: Box::new(cs_const(1)) };
+        lemma_eval_add(el_cs, cs_const(1), n);
+        lemma_eval_add(er_cs, cs_const(1), n);
+        lemma_eval_pair(er1, esb_rest(), n);
+        let new_stack = cs_pair(el1, cs_pair(er1, esb_rest()));
+        lemma_eval_pair(el1, cs_pair(er1, esb_rest()), n);
+        lemma_eval_pair(new_stack, esb_tags_match(), n);
+        lemma_unpair2_pair(eval_comp(new_stack, n), tm);
+    };
+}
+
 } // verus!

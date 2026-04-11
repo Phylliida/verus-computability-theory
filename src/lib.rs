@@ -251,6 +251,12 @@ pub mod compspec_eq_subst_forward_walk_unary;
 pub mod compspec_eq_subst_forward_walk_binary;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_binary_step_unfold;
+
+#[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_forward_binary_pieces;
+
+#[cfg(verus_keep_ghost)]
 pub mod compspec_eq_subst_forward_walk_quant;
 
 #[cfg(verus_keep_ghost)]

@@ -12,25 +12,33 @@ verus! {
 #[verifier::rlimit(3000)]
 pub proof fn lemma_eq_subst_forward_walk_quant(
     f1: Formula, f2: Formula, x_enc: nat, y_enc: nat,
-    rest: nat, fuel: nat,
+    rest: nat, valid: nat, pe: nat, re: nat, fuel: nat,
 )
     requires
-        formula_tag(f1) >= 7,
-        fuel >= formula_size(f1),
-        unpair2(
-            compspec_iterate(check_eq_subst_step(), fuel,
-                pair(pair(pair(encode(f1), encode(f2)) + 1, rest), 1nat),
-                pair(encode(f1), pair(encode(f2), pair(x_enc, y_enc))))
-        ) != 0,
+        valid != 0,
+        f1 matches Formula::Forall{..} || f1 matches Formula::Exists{..},
+        ({
+            match f1 {
+                Formula::Forall { var: v, sub } | Formula::Exists { var: v, sub } => {
+                    fuel >= formula_size(f1) &&
+                    unpair2(
+                        compspec_iterate(check_eq_subst_step(), fuel,
+                            pair(pair(pair(encode(f1), encode(f2)) + 1, rest), valid),
+                            pair(pe, pair(re, pair(x_enc, y_enc))))
+                    ) != 0
+                },
+                _ => false,
+            }
+        }),
     ensures
         eq_subst_compatible(f1, f2, Term::Var { index: x_enc }, Term::Var { index: y_enc }),
-    decreases f1, 0nat,
+    decreases f1, 1nat,
 {
     hide(compspec_iterate);
     let f1_enc = encode(f1);
     let f2_enc = encode(f2);
-    let acc0 = pair(pair(pair(f1_enc, f2_enc) + 1, rest), 1nat);
-    let s = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
+    let acc0 = pair(pair(pair(f1_enc, f2_enc) + 1, rest), valid);
+    let s = pair(pe, pair(re, pair(x_enc, y_enc)));
     let tag = formula_tag(f1);
 
     lemma_formula_size_pos(f1);
@@ -63,7 +71,7 @@ pub proof fn lemma_eq_subst_forward_walk_quant(
                     lemma_unpair1_pair(v2, encode(*s2));
                     lemma_unpair2_pair(v2, encode(*s2));
                     lemma_eq_subst_forward_step_quant(f1_enc, f2_enc, tag,
-                        rest, 1, (fuel - 1) as nat, f1_enc, f2_enc, x_enc, y_enc);
+                        rest, valid, (fuel - 1) as nat, pe, re, x_enc, y_enc);
                     let sub_entry = pair(encode(*s1), encode(*s2));
                     if v1 != v2 {
                         assert(false) by {
@@ -79,7 +87,7 @@ pub proof fn lemma_eq_subst_forward_walk_quant(
                         reveal(compspec_iterate);
                         lemma_compspec_iterate_unfold(check_eq_subst_step(), fuel, acc0, s);
                     };
-                    lemma_eq_subst_forward_walk(*s1, *s2, x_enc, y_enc, rest, (fuel - 1) as nat);
+                    lemma_eq_subst_forward_walk(*s1, *s2, x_enc, y_enc, rest, 1nat, pe, re, (fuel - 1) as nat);
                 },
                 _ => {
                     lemma_encode_is_pair(f2);
@@ -101,7 +109,7 @@ pub proof fn lemma_eq_subst_forward_walk_quant(
                     lemma_unpair1_pair(v2, encode(*s2));
                     lemma_unpair2_pair(v2, encode(*s2));
                     lemma_eq_subst_forward_step_quant(f1_enc, f2_enc, tag,
-                        rest, 1, (fuel - 1) as nat, f1_enc, f2_enc, x_enc, y_enc);
+                        rest, valid, (fuel - 1) as nat, pe, re, x_enc, y_enc);
                     let sub_entry = pair(encode(*s1), encode(*s2));
                     if v1 != v2 {
                         assert(false) by {
@@ -117,7 +125,7 @@ pub proof fn lemma_eq_subst_forward_walk_quant(
                         reveal(compspec_iterate);
                         lemma_compspec_iterate_unfold(check_eq_subst_step(), fuel, acc0, s);
                     };
-                    lemma_eq_subst_forward_walk(*s1, *s2, x_enc, y_enc, rest, (fuel - 1) as nat);
+                    lemma_eq_subst_forward_walk(*s1, *s2, x_enc, y_enc, rest, 1nat, pe, re, (fuel - 1) as nat);
                 },
                 _ => {
                     lemma_encode_is_pair(f2);

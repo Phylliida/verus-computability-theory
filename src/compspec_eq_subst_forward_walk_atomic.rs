@@ -12,15 +12,16 @@ verus! {
 #[verifier::rlimit(3000)]
 pub proof fn lemma_eq_subst_forward_walk_atomic(
     f1: Formula, f2: Formula, x_enc: nat, y_enc: nat,
-    rest: nat, fuel: nat,
+    rest: nat, valid: nat, pe: nat, re: nat, fuel: nat,
 )
     requires
+        valid != 0,
         formula_tag(f1) <= 1,
         fuel >= formula_size(f1),
         unpair2(
             compspec_iterate(check_eq_subst_step(), fuel,
-                pair(pair(pair(encode(f1), encode(f2)) + 1, rest), 1nat),
-                pair(encode(f1), pair(encode(f2), pair(x_enc, y_enc))))
+                pair(pair(pair(encode(f1), encode(f2)) + 1, rest), valid),
+                pair(pe, pair(re, pair(x_enc, y_enc))))
         ) != 0,
     ensures
         eq_subst_compatible(f1, f2, Term::Var { index: x_enc }, Term::Var { index: y_enc }),
@@ -28,8 +29,8 @@ pub proof fn lemma_eq_subst_forward_walk_atomic(
     hide(compspec_iterate);
     let f1_enc = encode(f1);
     let f2_enc = encode(f2);
-    let acc0 = pair(pair(pair(f1_enc, f2_enc) + 1, rest), 1nat);
-    let s = pair(f1_enc, pair(f2_enc, pair(x_enc, y_enc)));
+    let acc0 = pair(pair(pair(f1_enc, f2_enc) + 1, rest), valid);
+    let s = pair(pe, pair(re, pair(x_enc, y_enc)));
 
     lemma_formula_size_pos(f1);
 
@@ -51,7 +52,7 @@ pub proof fn lemma_eq_subst_forward_walk_atomic(
     lemma_unpair1_pair(formula_tag(f1), formula_content(f1));
 
     lemma_eq_subst_forward_step_atomic(f1_enc, f2_enc,
-        rest, 1, (fuel - 1) as nat, f1_enc, f2_enc, x_enc, y_enc);
+        rest, valid, (fuel - 1) as nat, pe, re, x_enc, y_enc);
 
     match f1 {
         Formula::Eq { left: l1, right: r1 } => {
