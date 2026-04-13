@@ -266,6 +266,9 @@ pub mod compspec_eq_subst_pair_forward;
 pub mod compspec_eq_subst_axiom_forward;
 
 #[cfg(verus_keep_ghost)]
+pub mod compspec_eq_subst_left_forward;
+
+#[cfg(verus_keep_ghost)]
 pub mod enumerator_computable;
 
 #[cfg(verus_keep_ghost)]
